@@ -24,8 +24,6 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>NSCameraUsageDescription</key>
-	<string>KuBoring использует камеру, чтобы показывать зеркало во вкладке шторки.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>KuBoring показывает ваши события на сегодня и завтра во вкладке «Календарь».</string>
 	<key>NSAppleEventsUsageDescription</key>

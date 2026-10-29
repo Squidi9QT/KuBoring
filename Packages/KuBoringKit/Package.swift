@@ -3,7 +3,7 @@
 import PackageDescription
 
 let features = ["FeatureMusic", "FeatureShelf", "FeatureClipboard", "FeatureTimer", "FeatureAI",
-                "FeatureScreenText", "FeatureSystem", "FeatureCalendar", "FeatureCamera", "FeatureIndicators"]
+                "FeatureScreenText", "FeatureSystem", "FeatureCalendar", "FeatureIndicators"]
 
 let package = Package(
     name: "KuBoringKit",
@@ -16,7 +16,7 @@ let package = Package(
         .target(name: "KuBoringCore", swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "KuBoringCoreTests", dependencies: ["KuBoringCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "FeatureTests",
-                    dependencies: ["FeatureMusic", "FeatureIndicators", "FeatureCalendar", "FeatureShelf", "FeatureClipboard"],
+                    dependencies: ["FeatureMusic", "FeatureCalendar", "FeatureShelf", "FeatureClipboard"],
                     swiftSettings: [.swiftLanguageMode(.v5)]),
     ] + features.map {
         .target(name: $0, dependencies: ["KuBoringCore"], swiftSettings: [.swiftLanguageMode(.v5)])

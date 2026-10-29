@@ -20,7 +20,7 @@ KuBoring/
   Packages/KuBoringKit/       Swift Package, один продукт KuBoringKit, модули:
     Sources/KuBoringCore/     каркас (никаких знаний о конкретных фичах!)
     Sources/FeatureMusic/  FeatureShelf/  FeatureClipboard/  FeatureTimer/  FeatureAI/
-    Sources/FeatureScreenText/  FeatureSystem/  FeatureCalendar/  FeatureCamera/
+    Sources/FeatureScreenText/  FeatureSystem/  FeatureCalendar/  FeatureIndicators/
     Tests/KuBoringCoreTests/
   LICENSE (MIT, Kurban Idrisov), THIRD_PARTY_LICENSES (MediaRemoteAdapter BSD-3), README.md
 ```
@@ -158,7 +158,7 @@ public struct FeatureContext {
 
 @MainActor
 public protocol NotchFeature: AnyObject {
-    var id: String { get }               // "music", "shelf", "clipboard", "timer", "ai", "screentext", "system", "calendar", "camera"
+    var id: String { get }               // "music", "shelf", "clipboard", "timer", "ai", "screentext", "system", "calendar", "indicators"
     var title: String { get }            // "Музыка"
     var symbol: String { get }           // SF Symbol
     var summary: String { get }          // одна строка для списка фич в настройках: что делает
@@ -212,8 +212,8 @@ public struct SettingsResetButton: View { public init(_ title: String = "Сбр�
 - screentext — FeatureScreenText: выделить область экрана -> распознать текст (Vision, ru+en) -> скопировать. Заготовка-протокол `LocalAIProvider` под будущую локальную ИИ. Выключена по умолчанию.
 - system — FeatureSystem (background): HUD громкости (CoreAudio, слушать изменение) и яркости (DisplayServices через dlopen; режим выбирается автоматически, см. «Энергопотребление»), зарядка/батарея (IOKit power sources: подключили зарядку -> всплывашка), «не спать» (IOPMAssertion, переключатель в меню/настройках). Каждая подфункция отдельным тумблером. Выключено по умолчанию.
 - calendar — FeatureCalendar: события на сегодня/завтра (EventKit, запрос доступа по кнопке). Выключено по умолчанию.
-- camera — FeatureCamera: зеркало с камеры (AVCaptureSession, стартует только при открытой вкладке). Выключено по умолчанию.
-- indicators — FeatureIndicators (background): заряд Bluetooth-наушников при подключении (событие смены устройства вывода CoreAudio + `system_profiler SPBluetoothDataType -json`), камера/микрофон заняты (CoreMediaIO/CoreAudio DeviceIsRunningSomewhere, только события), прогресс загрузок браузеров (DispatchSource на «Загрузки», опрос 1 с только пока что-то качается; выключено по умолчанию), анимация подключения зарядки (IOPS-уведомление). Включено по умолчанию.
+- camera — зеркало с камеры: временно удалено (возможно, вернётся).
+- indicators — FeatureIndicators (background): прогресс загрузок браузеров (DispatchSource на «Загрузки», опрос 1 с только пока что-то качается; выключено по умолчанию), анимация подключения зарядки (IOPS-уведомление). Включено по умолчанию.
 
 ## Дополнения (2026-10)
 - Ядро: `NotchController.requestKeyboardFocus()` — фича просит сделать панель key (горячая клавиша буфера, переименование на полке).
@@ -234,7 +234,7 @@ public struct SettingsResetButton: View { public init(_ title: String = "Сбр�
 - `NotchController` содержит `public weak var dropHandler: NotchDropHandler?`.
 - Звук/иконки — только системные (NSSound, SF Symbols). Чужих логотипов не использовать.
 - Каждый модуль фичи экспортирует один публичный класс `<Name>Feature: NotchFeature` с `public init()`
-  (MusicFeature, ShelfFeature, ClipboardFeature, TimerFeature, AIFeature, ScreenTextFeature, SystemFeature, CalendarFeature, CameraFeature).
+  (MusicFeature, ShelfFeature, ClipboardFeature, TimerFeature, AIFeature, ScreenTextFeature, SystemFeature, CalendarFeature, IndicatorsFeature).
   MusicFeature: `public init(adapterScriptURL: URL?, frameworkURL: URL?)` — пути передаёт App из Bundle.main.
 - Строки UI — русские. Комментарии в коде — по-русски, коротко.
 

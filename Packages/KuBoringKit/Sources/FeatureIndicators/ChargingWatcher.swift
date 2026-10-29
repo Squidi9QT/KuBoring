@@ -9,7 +9,7 @@ private func chargingPowerCallback(_ context: UnsafeMutableRawPointer?) {
     MainActor.assumeIsolated { watcher.powerChanged() }
 }
 
-/// Подключили зарядку — короткая анимация молнии с процентом, как на iPhone.
+/// Подключили зарядку — короткая анимация молнии у выреза.
 @MainActor
 final class ChargingWatcher {
     private let activities: ActivityCenter
@@ -51,13 +51,10 @@ final class ChargingWatcher {
             id: Self.activityID,
             priority: 75,
             expiresAt: Date().addingTimeInterval(3),
-            extraWidth: 52,
+            extraWidth: 30,
             leading: AnyView(ChargingBolt()),
-            trailing: AnyView(
-                Text("\(info.percent)%")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(Color.white)
-            )
+            // Справа ничего: только молния слева.
+            trailing: AnyView(Color.clear.frame(width: 1, height: 1))
         ))
     }
 

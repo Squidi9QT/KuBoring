@@ -159,6 +159,9 @@ final class NotchWindowController {
     private var pendingPasteboardCount = 0
     private var stayOpenApplied = false
     private var handledFocusRequest = 0
+    /// Подписки на открытие/закрытие меню (отдельно от observers: те проверяются на пустоту).
+    private var menuObservers: [NSObjectProtocol] = []
+    private var menuHoldActive = false
 
     init(screen: NSScreen, settings: SettingsStore, notch: NotchController,
          activities: ActivityCenter, registry: FeatureRegistry, arbiter: NotchScreenArbiter,
@@ -234,6 +237,12 @@ final class NotchWindowController {
             NSWorkspace.shared.notificationCenter.removeObserver(o)
         }
         observers.removeAll()
+        menuObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        menuObservers.removeAll()
+        if menuHoldActive {
+            menuHoldActive = false
+            notch.hold("modal.menu", false)
+        }
         panel.orderOut(nil)
     }
 
@@ -306,6 +315,7 @@ final class NotchWindowController {
     // MARK: Мышь
 
     private func installMonitors() {
+        installMenuObservers()
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseDown, .leftMouseUp]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
             let type = event.type
@@ -506,6 +516,43 @@ final class NotchWindowController {
 
     private var selectedTabAcceptsDropsItself: Bool {
         registry.resolvedTab(notch.state.selectedTab)?.acceptsDropsItself ?? false
+    }
+
+    // MARK: Контекстные меню
+
+    /// Пока открыто меню (правый клик по файлу или записи буфера), шторка не закрывается:
+    /// меню выходит за её рамки, и курсор по пути к пункту покидает зону шторки.
+    /// Системные уведомления AppKit о меню.
+    private func installMenuObservers() {
+        guard menuObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        menuObservers.append(center.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil,
+                                                queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.menuTracking(true) }
+        })
+        menuObservers.append(center.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil,
+                                                queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.menuTracking(false) }
+        })
+    }
+
+    private func menuTracking(_ open: Bool) {
+        guard !tornDown else { return }
+        if open {
+            // Только для открытой шторки этого экрана (меню в строке меню не касается).
+            guard isActive, notch.state.phase == .open, !menuHoldActive else { return }
+            menuHoldActive = true
+            notch.hold("modal.menu", true)
+        } else {
+            guard menuHoldActive else { return }
+            menuHoldActive = false
+            notch.hold("modal.menu", false)
+            // Меню закрыли, а курсор уже вне шторки — закрыться как обычно (если нет других причин держать).
+            if isActive, notch.state.phase == .open, !hoverZone().contains(NSEvent.mouseLocation) {
+                inside = false
+                notch.send(.pointerExited)
+            }
+        }
     }
 
     /// Пока открыта вкладка со staysOpenOnPointerExit (ИИ), уход курсора шторку не закрывает.

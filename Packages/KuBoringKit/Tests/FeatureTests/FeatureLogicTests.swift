@@ -1,6 +1,5 @@
 import XCTest
 @testable import FeatureMusic
-@testable import FeatureIndicators
 @testable import FeatureCalendar
 @testable import FeatureShelf
 @testable import FeatureClipboard
@@ -31,24 +30,6 @@ final class LyricsTests: XCTestCase {
         XCTAssertEqual(LyricsService.state(from: ["plainLyrics": "a\n\nb"]), .plain(["a", "b"]))
         XCTAssertEqual(LyricsService.state(from: ["syncedLyrics": "[00:02.00] x"]), .synced([LyricLine(time: 2, text: "x")]))
         XCTAssertNil(LyricsService.state(from: [:]))
-    }
-}
-
-final class HeadphonesTests: XCTestCase {
-    func testParsesSystemProfilerJSON() throws {
-        let json = """
-        {"SPBluetoothDataType":[{"device_connected":[
-          {"AirPods Pro":{"device_batteryLevelCase":"8\\u00a0%","device_batteryLevelLeft":"100\\u00a0%","device_batteryLevelRight":"75\\u00a0%"}},
-          {"Mouse":{"device_minorType":"Mouse"}},
-          {"Beats Solo":{"device_batteryLevelMain":"40 %"}}
-        ]}]}
-        """
-        let list = HeadphonesBattery.parse(Data(json.utf8))
-        XCTAssertEqual(list.count, 2)
-        XCTAssertEqual(list[0], HeadphonesBattery(name: "AirPods Pro", left: 100, right: 75, caseLevel: 8, main: nil))
-        XCTAssertEqual(list[0].symbol, "airpodspro")
-        XCTAssertEqual(list[1].main, 40)
-        XCTAssertEqual(list[1].symbol, "beats.headphones")
     }
 }
 

@@ -8,7 +8,6 @@ import FeatureAI
 import FeatureScreenText
 import FeatureSystem
 import FeatureCalendar
-import FeatureCamera
 import FeatureIndicators
 
 /// Точка сборки: создаёт ядро и регистрирует фичи.
@@ -41,7 +40,6 @@ final class Composition {
         registry.register(ScreenTextFeature())
         registry.register(SystemFeature())
         registry.register(CalendarFeature())
-        registry.register(CameraFeature())
         registry.register(IndicatorsFeature())
 
         let settingsWindow = SettingsWindowController(settings: settings, registry: registry)
