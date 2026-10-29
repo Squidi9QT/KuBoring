@@ -1,0 +1,51 @@
+name: KuBoring
+options:
+  bundleIdPrefix: com.kurban
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  KuBoringKit:
+    path: Packages/KuBoringKit
+targets:
+  KuBoring:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes:
+          - "Vendor/**"
+          - "Info.plist"
+          - "*.entitlements"
+    dependencies:
+      - package: KuBoringKit
+        product: KuBoringKit
+      - framework: App/Vendor/MediaRemoteAdapter.framework
+        embed: true
+        link: false
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_NAME: KuBoring
+        PRODUCT_BUNDLE_IDENTIFIER: com.kurban.kuboring
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/KuBoring.entitlements
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_VERSION: "5.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+schemes:
+  KuBoring:
+    build:
+      targets:
+        KuBoring: all
+    run:
+      config: Debug
+    test:
+      targets:
+        - package: KuBoringKit/KuBoringCoreTests

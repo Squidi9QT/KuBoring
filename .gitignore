@@ -1,0 +1,7 @@
+KuBoring.xcodeproj/
+.build/
+DerivedData/
+xcuserdata/
+.DS_Store
+.swiftpm/
+.tmp_edit/
