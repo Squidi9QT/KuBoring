@@ -12,7 +12,6 @@ enum TimerKeys {
     static let pomodoroLongBreak = SettingKey<Int>("feature.timer.pomodoroLongBreak", default: 15)
 }
 
-/// Фазы «помидора»: 4 рабочих отрезка с короткими перерывами, затем длинный.
 enum PomodoroPhase: Equatable {
     case work, shortBreak, longBreak
 
@@ -27,17 +26,14 @@ enum PomodoroPhase: Equatable {
     var isBreak: Bool { self != .work }
 }
 
-/// Логика таймера обратного отсчёта (порт KubTimer).
 @MainActor @Observable
 final class TimerModel {
     var total: TimeInterval = 25 * 60
     var remaining: TimeInterval = 25 * 60
     var isRunning = false
     var finished = false
-    /// Режим «помидор»: после работы сам начинается перерыв и наоборот.
     private(set) var pomodoro = false
     private(set) var phase: PomodoroPhase = .work
-    /// Сколько рабочих отрезков завершено в текущем цикле.
     private(set) var completedWork = 0
 
     private(set) var settings: SettingsStore?
@@ -54,7 +50,6 @@ final class TimerModel {
     static let defaultPresets = [5, 15, 25, 50]
     static let maxPresets = 8
 
-    /// Пресеты в минутах (отсортированы, 1...8 штук).
     var presets: [Int] {
         let saved = (settings?[TimerKeys.presets] ?? Self.defaultPresets).filter { $0 > 0 }
         return saved.isEmpty ? Self.defaultPresets : saved.sorted()
@@ -75,7 +70,6 @@ final class TimerModel {
         if isRunning { postActivity() }
     }
 
-    /// Остановить всё и убрать активность.
     func shutdown() {
         tickTask?.cancel()
         tickTask = nil
@@ -101,12 +95,10 @@ final class TimerModel {
         return max(1, min(180, settings?[key] ?? key.defaultValue))
     }
 
-    /// Номер рабочего отрезка в цикле (1…4): в перерыве — того, что только что закончился.
     var cycleNumber: Int {
         phase == .work ? completedWork % 4 + 1 : (max(1, completedWork) - 1) % 4 + 1
     }
 
-    /// Цвет текущей фазы: работа — оранжевый, перерыв — бирюзовый.
     var tint: Color { pomodoro && phase.isBreak ? Palette.pause : Palette.timer }
 
     func set(minutes: Int) {
@@ -188,7 +180,6 @@ final class TimerModel {
         }
     }
 
-    /// Фаза закончилась: звук и сразу следующая фаза.
     private func nextPomodoroPhase() {
         let soundName = settings?[TimerKeys.sound] ?? "Glass"
         NSSound(named: NSSound.Name(soundName))?.play()
@@ -213,12 +204,13 @@ final class TimerModel {
         tickTask = nil
     }
 
-    /// Активность в закрытой шторке: иконка слева, отсчёт справа. Вьюхи сами читают model.remaining.
     private func postActivity() {
         let leading = AnyView(TimerActivityRing(model: self))
         let trailing = AnyView(TimerActivityText(model: self))
-        activities?.post(LiveActivity(id: Self.activityID, priority: 80, expiresAt: nil,
-                                      extraWidth: 40, leading: leading, trailing: trailing))
+        activities?.post(
+            LiveActivity(
+                id: Self.activityID, priority: 80, expiresAt: nil,
+                extraWidth: 40, leading: leading, trailing: trailing))
     }
 }
 
@@ -234,7 +226,6 @@ struct TimerActivityText: View {
     }
 }
 
-/// Кольцо оставшегося времени слева от выреза (в «помидоре» в перерыв — листик).
 struct TimerActivityRing: View {
     let model: TimerModel
 

@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Окно приветствия: показывается при первом запуске (и из меню «Что умеет KuBoring»).
 @MainActor
 public final class OnboardingWindowController {
     private let settings: SettingsStore
@@ -13,7 +12,6 @@ public final class OnboardingWindowController {
         self.onOpenSettings = onOpenSettings
     }
 
-    /// Показать, если пользователь ещё не видел приветствие.
     public func showIfNeeded() {
         guard !settings[CoreKeys.onboardingShown] else { return }
         show()
@@ -52,12 +50,24 @@ private struct OnboardingView: View {
     let onDone: () -> Void
 
     private let items: [(String, String, String)] = [
-        ("cursorarrow.motionlines", "Наведи на вырез", "Шторка раскроется. Свайп двумя пальцами по шапке — соседняя вкладка, вверх — закрыть."),
-        ("tray.and.arrow.down", "Перетащи файл на вырез", "Он ляжет на полку. Правый клик по файлу: сжать, в JPG, в ZIP, переименовать."),
-        ("doc.on.clipboard", "⌘⇧V — история буфера", "Текст и картинки, закрепление. Включается в настройках «Буфера»."),
+        (
+            "cursorarrow.motionlines", "Наведи на вырез",
+            "Шторка раскроется. Свайп двумя пальцами по шапке — соседняя вкладка, вверх — закрыть."
+        ),
+        (
+            "tray.and.arrow.down", "Перетащи файл на вырез",
+            "Он ляжет на полку. Правый клик по файлу: сжать, в JPG, в ZIP, переименовать."
+        ),
+        (
+            "doc.on.clipboard", "⌘⇧V — история буфера",
+            "Текст и картинки, закрепление. Включается в настройках «Буфера»."
+        ),
         ("quote.bubble", "Текст песен", "Во вкладке «Музыка» строчки подсвечиваются в такт треку."),
         ("video", "Созвоны", "Отсчёт до созвона в шторке и кнопка «Войти» во вкладке календаря."),
-        ("battery.75percent", "Батарея и переключатели", "Клик по проценту в шапке: зарядка, энергосбережение, тёмная тема, «не засыпать»."),
+        (
+            "battery.75percent", "Батарея и переключатели",
+            "Клик по проценту в шапке: зарядка, энергосбережение, тёмная тема, «не засыпать»."
+        ),
     ]
 
     var body: some View {

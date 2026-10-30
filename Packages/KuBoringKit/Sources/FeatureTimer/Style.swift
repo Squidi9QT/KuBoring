@@ -1,12 +1,10 @@
 import SwiftUI
 
-// Мелкие общие вьюхи (дублируются в каждом модуле, модули независимы).
 enum Palette {
     static let surface = Color.white.opacity(0.08)
     static let surfaceHover = Color.white.opacity(0.14)
     static let secondary = Color.gray
     static let timer = Color.orange
-    /// Перерыв в «помидоре».
     static let pause = Color.teal
 }
 

@@ -1,19 +1,19 @@
 import SwiftUI
 import KuBoringCore
 
-/// Вкладка «Текст с экрана».
 struct ScreenTextView: View {
     let model: ScreenTextModel
 
     var body: some View {
         GeometryReader { geo in
             let k = AdaptiveMetrics(size: geo.size).scale
-            // Заглушка «Спросить ИИ» самая широкая — убираем её, когда не хватает ширины.
             let showAI = geo.size.width / k >= 580
             VStack(alignment: .leading, spacing: 10 * k) {
                 HStack(spacing: 8 * k) {
-                    PillButton(title: model.status == .selecting ? "Выделите область…" : "Выделить область",
-                               symbol: "viewfinder", selected: !model.isBusy, scale: k) {
+                    PillButton(
+                        title: model.status == .selecting ? "Выделите область…" : "Выделить область",
+                        symbol: "viewfinder", selected: !model.isBusy, scale: k
+                    ) {
                         model.capture()
                     }
                     .disabled(model.isBusy)
@@ -26,12 +26,13 @@ struct ScreenTextView: View {
                     }
                     Spacer(minLength: 0)
                     if !model.text.isEmpty {
-                        PillButton(title: model.justCopied ? "Скопировано" : "Скопировать",
-                                   symbol: model.justCopied ? "checkmark" : "doc.on.doc", scale: k) {
+                        PillButton(
+                            title: model.justCopied ? "Скопировано" : "Скопировать",
+                            symbol: model.justCopied ? "checkmark" : "doc.on.doc", scale: k
+                        ) {
                             model.copyText()
                         }
                     }
-                    // Заготовка под локальную ИИ.
                     if showAI {
                         PillButton(title: "Спросить локальную ИИ (скоро)", symbol: "cpu", scale: k) {}
                             .disabled(true)
@@ -49,11 +50,15 @@ struct ScreenTextView: View {
         if case .failed(let message) = model.status {
             EmptyHintView(symbol: "exclamationmark.triangle", title: "Не получилось", subtitle: message)
         } else if model.nothingFound {
-            EmptyHintView(symbol: "text.magnifyingglass", title: "Текст не найден",
-                          subtitle: "Попробуйте выделить область покрупнее.")
+            EmptyHintView(
+                symbol: "text.magnifyingglass", title: "Текст не найден",
+                subtitle: "Попробуйте выделить область покрупнее.")
         } else if model.text.isEmpty {
-            EmptyHintView(symbol: "text.viewfinder", title: "Нажмите «Выделить область»",
-                          subtitle: "Обведите мышью текст на экране — он распознаётся и скопируется.\nНужно разрешение «Запись экрана» в системных настройках.")
+            EmptyHintView(
+                symbol: "text.viewfinder", title: "Нажмите «Выделить область»",
+                subtitle:
+                    "Обведите мышью текст на экране — он распознаётся и скопируется.\nНужно разрешение «Запись экрана» в системных настройках."
+            )
         } else {
             ScrollView {
                 Text(model.text)
@@ -74,7 +79,6 @@ private struct EmptyHintView: View {
     var subtitle: String = ""
 
     var body: some View {
-        // Если по высоте не влезает с подзаголовком — показываем только заголовок.
         ViewThatFits(in: .vertical) {
             hint(withSubtitle: true)
             hint(withSubtitle: false)

@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Собственное окно настроек (сцена Settings не используется).
 @MainActor
 public final class SettingsWindowController {
     private let settings: SettingsStore
@@ -13,7 +12,6 @@ public final class SettingsWindowController {
         self.registry = registry
     }
 
-    /// Показать окно (создаётся при первом вызове) и вывести приложение вперёд.
     public func show() {
         if window == nil {
             let root = SettingsRootView(settings: settings, registry: registry)

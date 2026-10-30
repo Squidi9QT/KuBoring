@@ -31,8 +31,11 @@ struct AboutView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             }
-            SettingsSection("Лицензии",
-                            footer: "Вдохновлено Boring Notch. Код написан с нуля. Для управления музыкой используется MediaRemoteAdapter (BSD-3).") {
+            SettingsSection(
+                "Лицензии",
+                footer:
+                    "Вдохновлено Boring Notch. Код написан с нуля. Для управления музыкой используется MediaRemoteAdapter (BSD-3)."
+            ) {
                 LabeledContent("KuBoring", value: "MIT")
                 LabeledContent("MediaRemoteAdapter", value: "BSD-3-Clause")
             }

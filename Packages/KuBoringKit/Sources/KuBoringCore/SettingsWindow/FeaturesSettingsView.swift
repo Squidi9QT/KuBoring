@@ -67,10 +67,13 @@ struct FeaturesSettingsView: View {
                 }
             }
             Spacer()
-            Toggle("", isOn: Binding(
-                get: { registry.isEnabled(feature) },
-                set: { registry.setEnabled(feature.id, $0) }
-            ))
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { registry.isEnabled(feature) },
+                    set: { registry.setEnabled(feature.id, $0) }
+                )
+            )
             .toggleStyle(.switch)
             .labelsHidden()
         }

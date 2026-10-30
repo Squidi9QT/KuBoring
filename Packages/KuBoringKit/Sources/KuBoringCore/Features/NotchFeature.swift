@@ -23,11 +23,8 @@ public protocol NotchFeature: AnyObject {
     var summary: String { get }
     var kind: FeatureKind { get }
     var enabledByDefault: Bool { get }
-    /// Если не nil — пока открыта вкладка, шторка принимает этот размер.
     var preferredOpenSize: CGSize? { get }
-    /// true — вкладка сама принимает перетаскивание (веб-страница): шторка не перехватывает файлы.
     var acceptsDropsItself: Bool { get }
-    /// true — пока вкладка выбрана, уход курсора не закрывает шторку (закрывается кликом вне неё).
     var staysOpenOnPointerExit: Bool { get }
     func start(_ context: FeatureContext)
     func stop()

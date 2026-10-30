@@ -4,7 +4,6 @@ import QuickLookThumbnailing
 import Observation
 import KuBoringCore
 
-/// Ключи настроек раздела «Полка».
 enum ShelfKeys {
     static let items = SettingKey<[ShelfItem]>("data.shelf.items", default: [])
     static let maxCount = SettingKey<Int>("feature.shelf.maxCount", default: 20)
@@ -12,7 +11,6 @@ enum ShelfKeys {
     static let clearOnQuit = SettingKey<Bool>("feature.shelf.clearOnQuit", default: false)
 }
 
-/// Элемент полки: закладка на файл + имя и дата.
 struct ShelfItem: Codable, Sendable, Identifiable, Equatable {
     var id: UUID
     var bookmark: Data
@@ -39,15 +37,17 @@ final class ShelfModel {
         items = []
         urls = [:]
         thumbnails = [:]
-        // Не помним файлы — стираем и сохранённый список, иначе он вернётся при повторном включении.
         guard settings[ShelfKeys.remember] else { persist(); return }
         var result: [ShelfItem] = []
         for var item in settings[ShelfKeys.items] {
             var stale = false
-            guard let url = try? URL(resolvingBookmarkData: item.bookmark, options: [.withoutUI],
-                                     relativeTo: nil, bookmarkDataIsStale: &stale),
-                  FileManager.default.fileExists(atPath: url.path) else { continue }
-            if stale, let fresh = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
+            guard let url = try? URL(
+                    resolvingBookmarkData: item.bookmark, options: [.withoutUI],
+                    relativeTo: nil, bookmarkDataIsStale: &stale),
+                FileManager.default.fileExists(atPath: url.path)
+            else { continue }
+            if stale,
+                let fresh = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
                 item.bookmark = fresh
             }
             item.name = url.lastPathComponent
@@ -65,8 +65,6 @@ final class ShelfModel {
 
     // MARK: Изменения
 
-    /// Новые файлы встают в начало в том же порядке, в каком их бросили.
-    /// Файл, который уже лежит на полке, поднимается наверх, а не пропускается.
     func add(_ newURLs: [URL]) {
         var idByPath: [String: UUID] = [:]
         for (id, url) in urls { idByPath[url.standardizedFileURL.path] = id }
@@ -80,7 +78,8 @@ final class ShelfModel {
                 batchPaths.insert(path)
                 continue
             }
-            guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { continue }
+            guard let bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+            else { continue }
             let item = ShelfItem(id: UUID(), bookmark: bookmark, name: url.lastPathComponent, addedAt: Date())
             urls[item.id] = url
             batch.append(item)
@@ -110,7 +109,6 @@ final class ShelfModel {
         persist()
     }
 
-    /// Удалить набор элементов за раз, список сохраняется один раз.
     func removeItems(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
         items.removeAll { ids.contains($0.id) }
@@ -155,7 +153,6 @@ final class ShelfModel {
         NSSharingService(named: .sendViaAirDrop)?.perform(withItems: [url])
     }
 
-    /// Не закрываем шторку, пока открыто окно «Поделиться».
     func holdNotch() {
         holdTask?.cancel()
         notch?.hold("shelf.share", true)
@@ -174,15 +171,12 @@ final class ShelfModel {
 
     // MARK: Быстрые действия
 
-    /// Идёт действие (сжатие, архив…).
     private(set) var busy = false
-    /// Короткое сообщение в шапке (результат или ошибка); пропадает само.
     private(set) var message: String?
     @ObservationIgnored private var messageTask: Task<Void, Never>?
 
     enum Action { case compress, jpeg, zip }
 
-    /// Выполняет действие в фоне; результат кладётся на полку первым.
     func perform(_ action: Action, on targets: [ShelfItem]) {
         let sources = targets.compactMap { url(for: $0) }
         guard !sources.isEmpty, !busy else { return }
@@ -210,7 +204,6 @@ final class ShelfModel {
         }
     }
 
-    /// Переименовать файл на диске и на полке.
     @discardableResult
     func rename(_ item: ShelfItem, to name: String) -> Bool {
         guard let old = url(for: item) else { return false }
@@ -251,10 +244,10 @@ final class ShelfModel {
     func loadThumbnail(for item: ShelfItem) async {
         guard thumbnails[item.id] == nil, let url = urls[item.id] else { return }
         let scale = NSScreen.main?.backingScaleFactor ?? 2
-        let request = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: 128, height: 128),
-                                                   scale: scale, representationTypes: .all)
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url, size: CGSize(width: 128, height: 128),
+            scale: scale, representationTypes: .all)
         let rep = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
-        // Пока генерировали, файл могли убрать с полки.
         guard urls[item.id] != nil else { return }
         if let rep {
             thumbnails[item.id] = NSImage(cgImage: rep.cgImage, size: .zero)

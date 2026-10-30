@@ -24,7 +24,6 @@ final class LowPowerScheduleTests: XCTestCase {
     }
 
     func testHighPowerValueCountsAsOff() {
-        // На некоторых MacBook Pro lowpowermode 2 — «высокая мощность»; для нас это не энергосбережение.
         XCTAssertEqual(BatteryMonitor.parseSchedule(output(battery: 0, adapter: 2)), .never)
     }
 
@@ -36,15 +35,17 @@ final class LowPowerScheduleTests: XCTestCase {
 
 final class PrivilegedPmsetTests: XCTestCase {
     func testParsesSleepDisabled() {
-        XCTAssertTrue(PrivilegedPmset.parseSleepDisabled("System-wide power settings:\n SleepDisabled\t\t1\nCurrently in use:\n"))
+        XCTAssertTrue(
+            PrivilegedPmset.parseSleepDisabled("System-wide power settings:\n SleepDisabled\t\t1\nCurrently in use:\n"))
         XCTAssertFalse(PrivilegedPmset.parseSleepDisabled(" SleepDisabled\t\t0\n"))
         XCTAssertFalse(PrivilegedPmset.parseSleepDisabled(""))
     }
 
     func testCommandsMatchRule() {
         let rule = PrivilegedPmset.ruleText(user: "me")
-        for command: PrivilegedPmset.Command in [.disableSleep(true), .lowPowerOnBattery(false), .lowPowerOnAdapter(true)] {
-            // Команда с маской [01] вместо значения должна быть в правиле дословно.
+        for command: PrivilegedPmset.Command in [
+            .disableSleep(true), .lowPowerOnBattery(false), .lowPowerOnAdapter(true),
+        ] {
             var args = command.arguments
             args[args.count - 1] = "[01]"
             XCTAssertTrue(rule.contains("/usr/bin/pmset " + args.joined(separator: " ")), "\(command)")

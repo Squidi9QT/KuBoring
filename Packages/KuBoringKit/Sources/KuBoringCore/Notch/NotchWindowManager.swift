@@ -1,7 +1,6 @@
 import AppKit
 import Observation
 
-/// Создаёт окна шторки на нужных экранах и пересоздаёт их при смене конфигурации мониторов.
 @MainActor
 public final class NotchWindowManager {
     private let settings: SettingsStore
@@ -9,7 +8,6 @@ public final class NotchWindowManager {
     private let activities: ActivityCenter
     private let registry: FeatureRegistry
     private let arbiter = NotchScreenArbiter()
-    /// Общие для всех окон: аккумулятор и быстрые переключатели в шапке шторки.
     private let battery = BatteryMonitor()
     private let controls: QuickControls
     private let onOpenSettings: (() -> Void)?
@@ -18,9 +16,11 @@ public final class NotchWindowManager {
     private var screenObserver: NSObjectProtocol?
     private var started = false
 
-    public init(settings: SettingsStore, notch: NotchController,
-                activities: ActivityCenter, registry: FeatureRegistry,
-                onOpenSettings: (() -> Void)? = nil) {
+    public init(
+        settings: SettingsStore, notch: NotchController,
+        activities: ActivityCenter, registry: FeatureRegistry,
+        onOpenSettings: (() -> Void)? = nil
+    ) {
         self.onOpenSettings = onOpenSettings
         self.settings = settings
         self.notch = notch
@@ -38,7 +38,6 @@ public final class NotchWindowManager {
     public func start() {
         guard !started else { return }
         started = true
-        // Системное уведомление AppKit: изменилась конфигурация экранов.
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
@@ -55,11 +54,9 @@ public final class NotchWindowManager {
         screenObserver = nil
         controllers.forEach { $0.tearDown() }
         controllers.removeAll()
-        // Снять «не засыпать» из шторки при выходе.
         controls.invalidate()
     }
 
-    /// Пересоздать окна: на главном экране или на всех.
     public func rebuild() {
         controllers.forEach { $0.tearDown() }
         controllers.removeAll()
@@ -73,10 +70,11 @@ public final class NotchWindowManager {
             arbiter.activeID = primaryID
         }
         for screen in targets {
-            let c = NotchWindowController(screen: screen, settings: settings, notch: notch,
-                                          activities: activities, registry: registry, arbiter: arbiter,
-                                          battery: battery, controls: controls,
-                                          onOpenSettings: onOpenSettings)
+            let c = NotchWindowController(
+                screen: screen, settings: settings, notch: notch,
+                activities: activities, registry: registry, arbiter: arbiter,
+                battery: battery, controls: controls,
+                onOpenSettings: onOpenSettings)
             controllers.append(c)
             c.show()
         }
@@ -86,9 +84,6 @@ public final class NotchWindowManager {
         screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
     }
 
-    /// Реакция на переключатель «на всех экранах».
-    /// SettingsStore сообщает об изменении ЛЮБОЙ настройки, поэтому пересоздаём окна, только если
-    /// этот переключатель действительно поменялся (иначе окна пересоздавались бы, например, при смене вкладки).
     private func trackSettings() {
         guard started else { return }
         let allScreens = settings[CoreKeys.showOnAllScreens]

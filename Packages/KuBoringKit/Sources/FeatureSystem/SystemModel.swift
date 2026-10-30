@@ -17,23 +17,22 @@ private func powerSourceCallback(_ context: UnsafeMutableRawPointer?) {
     Task { @MainActor in model.powerChanged() }
 }
 
-/// 'vmvc' — kAudioHardwareServiceDeviceProperty_VirtualMainVolume
 private let virtualMainVolumeSelector: AudioObjectPropertySelector = 0x766D7663
 
 private typealias GetBrightnessFn = @convention(c) (UInt32, UnsafeMutablePointer<Float>) -> Int32
-private typealias BrightnessCallbackFn = @convention(c) (UnsafeRawPointer?, UnsafeRawPointer?, CFString?, UnsafeRawPointer?, CFDictionary?) -> Void
-/// DisplayServicesRegisterForBrightnessChangeNotifications / Unregister…: (display, observer, callback) -> Int32
+private typealias BrightnessCallbackFn =
+    @convention(c) (UnsafeRawPointer?, UnsafeRawPointer?, CFString?, UnsafeRawPointer?, CFDictionary?) -> Void
 private typealias BrightnessNotifyFn = @convention(c) (UInt32, UnsafeRawPointer?, BrightnessCallbackFn) -> Int32
 
-/// C-колбэк изменения яркости (без захвата): observer = unretained SystemModel.
-private func brightnessChangeCallback(_ center: UnsafeRawPointer?, _ observer: UnsafeRawPointer?,
-                                     _ name: CFString?, _ object: UnsafeRawPointer?, _ userInfo: CFDictionary?) {
+private func brightnessChangeCallback(
+    _ center: UnsafeRawPointer?, _ observer: UnsafeRawPointer?,
+    _ name: CFString?, _ object: UnsafeRawPointer?, _ userInfo: CFDictionary?
+) {
     guard let observer else { return }
     let model = Unmanaged<SystemModel>.fromOpaque(observer).takeUnretainedValue()
     Task { @MainActor in model.brightnessEvent() }
 }
 
-/// Как сейчас отслеживается яркость.
 enum BrightnessMode {
     case event, keys, poll
 
@@ -56,10 +55,8 @@ final class SystemModel {
     let settings: SettingsStore
     private let activities: ActivityCenter
 
-    /// Доступна ли яркость на этом Mac.
     private(set) var brightnessAvailable = false
 
-    // Громкость
     @ObservationIgnored private var volumeRunning = false
     @ObservationIgnored private var deviceBlock: AudioObjectPropertyListenerBlock?
     @ObservationIgnored private var volumeBlock: AudioObjectPropertyListenerBlock?
@@ -67,7 +64,6 @@ final class SystemModel {
     @ObservationIgnored private var lastVolume: Float = -1
     @ObservationIgnored private var lastMuted = false
 
-    // Яркость
     @ObservationIgnored private var dsHandle: UnsafeMutableRawPointer?
     @ObservationIgnored private var brightnessFn: GetBrightnessFn?
     @ObservationIgnored private var brightnessTask: Task<Void, Never>?
@@ -76,16 +72,13 @@ final class SystemModel {
     @ObservationIgnored private var eventRegistered = false
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var burstUntil = Date.distantPast
-    /// Текущий режим слежения за яркостью (nil — выключено). Показывается в настройках.
     private(set) var brightnessMode: BrightnessMode?
     @ObservationIgnored private var lastBrightness: Float = -1
 
-    // Батарея
     @ObservationIgnored private var powerSource: CFRunLoopSource?
     @ObservationIgnored private var lastOnAC: Bool?
     @ObservationIgnored private var lowNotified = false
 
-    // Не спать
     @ObservationIgnored private var assertionID: IOPMAssertionID = 0
     @ObservationIgnored private var assertionActive = false
 
@@ -95,7 +88,6 @@ final class SystemModel {
         resolveBrightness()
     }
 
-    /// Привести все подфункции в соответствие с настройками.
     func settingsChanged() {
         if settings[SystemKeys.hudVolume] { startVolume() } else { stopVolume() }
         if settings[SystemKeys.hudBrightness] && brightnessAvailable { startBrightness() } else { stopBrightness() }
@@ -121,18 +113,19 @@ final class SystemModel {
     // MARK: HUD
 
     private func postHUD(symbol: String, level: Float) {
-        activities.post(LiveActivity(
-            id: "system.hud",
-            priority: 100,
-            expiresAt: Date().addingTimeInterval(1.5),
-            extraWidth: 56,
-            leading: AnyView(
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white)
-            ),
-            trailing: AnyView(SystemLevelBar(level: Double(level)))
-        ))
+        activities.post(
+            LiveActivity(
+                id: "system.hud",
+                priority: 100,
+                expiresAt: Date().addingTimeInterval(1.5),
+                extraWidth: 56,
+                leading: AnyView(
+                    Image(systemName: symbol)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                ),
+                trailing: AnyView(SystemLevelBar(level: Double(level)))
+            ))
     }
 
     // MARK: Громкость (CoreAudio)
@@ -148,7 +141,8 @@ final class SystemModel {
             Task { @MainActor in self?.defaultDeviceChanged() }
         }
         deviceBlock = block
-        _ = AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main, block)
+        _ = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main, block)
         subscribeVolume()
     }
 
@@ -161,7 +155,8 @@ final class SystemModel {
                 mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                 mScope: kAudioObjectPropertyScopeGlobal,
                 mElement: kAudioObjectPropertyElementMain)
-            _ = AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main, block)
+            _ = AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main, block)
         }
         deviceBlock = nil
     }
@@ -191,19 +186,20 @@ final class SystemModel {
         volumeBlock = block
         let scope = AudioObjectPropertyScope(kAudioDevicePropertyScopeOutput)
         let candidates: [AudioObjectPropertyAddress] = [
-            AudioObjectPropertyAddress(mSelector: virtualMainVolumeSelector, mScope: scope, mElement: kAudioObjectPropertyElementMain),
+            AudioObjectPropertyAddress(
+                mSelector: virtualMainVolumeSelector, mScope: scope, mElement: kAudioObjectPropertyElementMain),
             AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar, mScope: scope, mElement: 1),
             AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar, mScope: scope, mElement: 2),
-            AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute, mScope: scope, mElement: kAudioObjectPropertyElementMain),
+            AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyMute, mScope: scope, mElement: kAudioObjectPropertyElementMain),
         ]
         for candidate in candidates {
             var addr = candidate
             if AudioObjectHasProperty(device, &addr),
-               AudioObjectAddPropertyListenerBlock(device, &addr, DispatchQueue.main, block) == noErr {
+                AudioObjectAddPropertyListenerBlock(device, &addr, DispatchQueue.main, block) == noErr {
                 watched.append((device, candidate))
             }
         }
-        // Запоминаем текущее состояние без показа HUD
         lastVolume = readVolume(device) ?? -1
         lastMuted = readMute(device)
     }
@@ -219,7 +215,9 @@ final class SystemModel {
         volumeBlock = nil
     }
 
-    private func readFloat(_ device: AudioObjectID, selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement) -> Float? {
+    private func readFloat(
+        _ device: AudioObjectID, selector: AudioObjectPropertySelector, element: AudioObjectPropertyElement
+    ) -> Float? {
         var addr = AudioObjectPropertyAddress(
             mSelector: selector,
             mScope: AudioObjectPropertyScope(kAudioDevicePropertyScopeOutput),
@@ -232,9 +230,16 @@ final class SystemModel {
     }
 
     private func readVolume(_ device: AudioObjectID) -> Float? {
-        if let v = readFloat(device, selector: virtualMainVolumeSelector, element: kAudioObjectPropertyElementMain) { return v }
-        if let v = readFloat(device, selector: kAudioDevicePropertyVolumeScalar, element: kAudioObjectPropertyElementMain) { return v }
-        let channels = [1, 2].compactMap { readFloat(device, selector: kAudioDevicePropertyVolumeScalar, element: AudioObjectPropertyElement($0)) }
+        if let v = readFloat(device, selector: virtualMainVolumeSelector, element: kAudioObjectPropertyElementMain) {
+            return v
+        }
+        if let v = readFloat(
+            device, selector: kAudioDevicePropertyVolumeScalar, element: kAudioObjectPropertyElementMain) {
+            return v
+        }
+        let channels = [1, 2].compactMap {
+            readFloat(device, selector: kAudioDevicePropertyVolumeScalar, element: AudioObjectPropertyElement($0))
+        }
         guard !channels.isEmpty else { return nil }
         return channels.reduce(0, +) / Float(channels.count)
     }
@@ -301,7 +306,6 @@ final class SystemModel {
     private func startBrightness() {
         guard brightnessMode == nil else { return }
         lastBrightness = readBrightness() ?? -1
-        // а) событие от DisplayServices
         if let reg = registerFn {
             let observer = UnsafeRawPointer(Unmanaged.passUnretained(self).toOpaque())
             if reg(CGMainDisplayID(), observer, brightnessChangeCallback) == 0 {
@@ -309,7 +313,6 @@ final class SystemModel {
                 brightnessMode = .event
             }
         }
-        // б) клавиши яркости: частый опрос коротким всплеском
         if brightnessMode == nil {
             keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .systemDefined) { [weak self] event in
                 guard event.subtype.rawValue == 8 else { return }
@@ -317,7 +320,7 @@ final class SystemModel {
                 guard keyCode == 2 || keyCode == 3 else { return }
                 Task { @MainActor in self?.brightnessKeyPressed() }
             }
-            brightnessMode = keyMonitor != nil ? .keys : .poll   // в) опрос раз в секунду
+            brightnessMode = keyMonitor != nil ? .keys : .poll
         }
         restartBrightnessLoop()
     }
@@ -336,7 +339,6 @@ final class SystemModel {
         brightnessMode = nil
     }
 
-    /// Единственный цикл опроса; интервал зависит от режима.
     private func restartBrightnessLoop() {
         brightnessTask?.cancel()
         brightnessTask = Task { [weak self] in
@@ -352,7 +354,7 @@ final class SystemModel {
 
     private func brightnessInterval() -> Duration {
         switch brightnessMode {
-        case .event: return .seconds(10)   // страховка: основной путь — событие
+        case .event: return .seconds(10)
         case .keys: return Date() < burstUntil ? .milliseconds(100) : .seconds(2)
         case .poll, nil: return .seconds(1)
         }
@@ -382,11 +384,13 @@ final class SystemModel {
 
     private func readPower() -> PowerInfo? {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as [AnyObject]? else { return nil }
+            let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as [AnyObject]?
+        else { return nil }
         for source in list {
             guard let desc = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
-                  let current = desc["Current Capacity"] as? Int,
-                  let maxCap = desc["Max Capacity"] as? Int, maxCap > 0 else { continue }
+                let current = desc["Current Capacity"] as? Int,
+                let maxCap = desc["Max Capacity"] as? Int, maxCap > 0
+            else { continue }
             let state = desc["Power Source State"] as? String
             return PowerInfo(percent: min(100, max(0, current * 100 / maxCap)), onAC: state == "AC Power")
         }
@@ -399,7 +403,9 @@ final class SystemModel {
         lastOnAC = info?.onAC
         lowNotified = (info.map { !$0.onAC && $0.percent < 20 }) ?? false
         let context = Unmanaged.passUnretained(self).toOpaque()
-        guard let source = IOPSNotificationCreateRunLoopSource(powerSourceCallback, context)?.takeRetainedValue() else { return }
+        guard let source = IOPSNotificationCreateRunLoopSource(powerSourceCallback, context)?.takeRetainedValue() else {
+            return
+        }
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         powerSource = source
     }
@@ -423,7 +429,6 @@ final class SystemModel {
             postBattery(info, plugged: info.onAC)
             return
         }
-        // Низкий заряд: один раз при пересечении 20%
         if settings[SystemKeys.batteryLow], !info.onAC {
             if info.percent < 20 {
                 if !lowNotified {
@@ -452,23 +457,24 @@ final class SystemModel {
             symbol = "battery.0"
         }
         let tint: Color = low ? .red : (plugged ? .green : .white)
-        activities.post(LiveActivity(
-            id: "system.battery",
-            priority: 70,
-            expiresAt: Date().addingTimeInterval(3),
-            extraWidth: 52,
-            leading: AnyView(
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(tint)
-            ),
-            trailing: AnyView(
-                Text("\(info.percent)%")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.white)
-            )
-        ))
+        activities.post(
+            LiveActivity(
+                id: "system.battery",
+                priority: 70,
+                expiresAt: Date().addingTimeInterval(3),
+                extraWidth: 52,
+                leading: AnyView(
+                    Image(systemName: symbol)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(tint)
+                ),
+                trailing: AnyView(
+                    Text("\(info.percent)%")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.white)
+                )
+            ))
     }
 
     // MARK: Не спать (IOPMAssertion)
@@ -480,18 +486,19 @@ final class SystemModel {
             releaseAssertion()
         }
         if assertionActive && settings[SystemKeys.keepAwakeBadge] {
-            activities.post(LiveActivity(
-                id: "system.awake",
-                priority: 10,
-                expiresAt: nil,
-                extraWidth: 24,
-                leading: AnyView(
-                    Image(systemName: "cup.and.saucer")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.white)
-                ),
-                trailing: AnyView(Color.clear.frame(width: 1, height: 1))
-            ))
+            activities.post(
+                LiveActivity(
+                    id: "system.awake",
+                    priority: 10,
+                    expiresAt: nil,
+                    extraWidth: 24,
+                    leading: AnyView(
+                        Image(systemName: "cup.and.saucer")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.white)
+                    ),
+                    trailing: AnyView(Color.clear.frame(width: 1, height: 1))
+                ))
         } else {
             activities.remove(id: "system.awake")
         }
@@ -520,7 +527,6 @@ final class SystemModel {
     }
 }
 
-/// Полоска уровня справа от выреза.
 struct SystemLevelBar: View {
     let level: Double
 

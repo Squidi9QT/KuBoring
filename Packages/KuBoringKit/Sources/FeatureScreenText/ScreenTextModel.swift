@@ -3,7 +3,6 @@ import Vision
 import Observation
 import KuBoringCore
 
-/// Заготовка под будущую локальную ИИ.
 public protocol LocalAIProvider {
     func ask(_ prompt: String) async throws -> String
 }
@@ -17,7 +16,6 @@ enum ScreenTextError: LocalizedError {
     var errorDescription: String? { "Не удалось получить изображение из буфера." }
 }
 
-/// Распознавание текста (Vision). Не привязано к главному потоку.
 enum TextRecognizer {
     static func recognize(_ image: CGImage) throws -> String {
         let request = VNRecognizeTextRequest()
@@ -31,7 +29,6 @@ enum TextRecognizer {
     }
 }
 
-/// Выделить область экрана -> распознать -> показать/скопировать.
 @MainActor @Observable
 final class ScreenTextModel {
     enum Status: Equatable {
@@ -77,7 +74,6 @@ final class ScreenTextModel {
     private func runCapture() async {
         status = .selecting
         nothingFound = false
-        // Пока выделяем область, шторка не должна закрыться.
         notch?.hold(Self.holdReason, true)
         defer { notch?.hold(Self.holdReason, false) }
 
@@ -91,13 +87,13 @@ final class ScreenTextModel {
         }
         if Task.isCancelled { status = .idle; return }
 
-        // Esc при выделении: буфер не изменился.
         guard pb.changeCount != before else {
             status = .idle
             return
         }
         guard let image = pb.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage,
-              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
             status = .failed(ScreenTextError.noImage.localizedDescription)
             return
         }
@@ -133,7 +129,6 @@ final class ScreenTextModel {
         }
     }
 
-    /// Интерактивное выделение области экрана в буфер обмена.
     private static func runScreencapture() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let process = Process()

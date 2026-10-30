@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Пункт бокового меню настроек.
 private struct SidebarItem: Identifiable, Hashable {
     let id: String
     let title: String
@@ -21,16 +20,19 @@ struct SettingsRootView: View {
     @State private var selection: String? = "general"
     @State private var query = ""
 
-    private let general = SidebarItem(id: "general", title: "Общие", symbol: "gearshape",
-                                      keywords: ["автозапуск", "экраны", "полноэкранный"])
-    private let notchItem = SidebarItem(id: "notch", title: "Шторка", symbol: "rectangle.topthird.inset.filled",
-                                        keywords: ["размер", "анимация", "задержка", "радиус", "наведение", "геометрия"])
-    private let features = SidebarItem(id: "features", title: "Вкладки и функции", symbol: "square.grid.2x2",
-                                       keywords: ["порядок", "включить", "выключить"])
-    private let about = SidebarItem(id: "about", title: "О программе", symbol: "info.circle",
-                                    keywords: ["версия", "лицензия"])
+    private let general = SidebarItem(
+        id: "general", title: "Общие", symbol: "gearshape",
+        keywords: ["автозапуск", "экраны", "полноэкранный"])
+    private let notchItem = SidebarItem(
+        id: "notch", title: "Шторка", symbol: "rectangle.topthird.inset.filled",
+        keywords: ["размер", "анимация", "задержка", "радиус", "наведение", "геометрия"])
+    private let features = SidebarItem(
+        id: "features", title: "Вкладки и функции", symbol: "square.grid.2x2",
+        keywords: ["порядок", "включить", "выключить"])
+    private let about = SidebarItem(
+        id: "about", title: "О программе", symbol: "info.circle",
+        keywords: ["версия", "лицензия"])
 
-    /// Разделы включённых фич, у которых есть свои настройки.
     private var featureItems: [SidebarItem] {
         registry.all.compactMap { f in
             guard registry.isEnabled(f), f.makeSettingsView() != nil else { return nil }
@@ -78,7 +80,7 @@ struct SettingsRootView: View {
         } else if current == "about" {
             AboutView(settings: settings, registry: registry)
         } else if current.hasPrefix("feature."),
-                  let feature = registry.all.first(where: { "feature.\($0.id)" == current }) {
+            let feature = registry.all.first(where: { "feature.\($0.id)" == current }) {
             FeatureSettingsView(settings: settings, feature: feature)
         } else {
             GeneralSettingsView(settings: settings)
@@ -86,7 +88,6 @@ struct SettingsRootView: View {
     }
 }
 
-/// Раздел настроек конкретной фичи.
 struct FeatureSettingsView: View {
     let settings: SettingsStore
     let feature: NotchFeature
@@ -98,7 +99,6 @@ struct FeatureSettingsView: View {
             }
             SettingsSection("Сброс") {
                 SettingsResetButton {
-                    // Сбрасываем настройки фичи, но не её включённость.
                     let key = featureEnabledKey(feature.id, default: feature.enabledByDefault)
                     let wasEnabled = settings[key]
                     settings.reset(prefix: "feature.\(feature.id).")

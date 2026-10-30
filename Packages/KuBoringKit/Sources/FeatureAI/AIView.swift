@@ -3,7 +3,6 @@ import SwiftUI
 import WebKit
 import KuBoringCore
 
-/// Вкладка «ИИ».
 struct AIView: View {
     let model: AIModel
 
@@ -40,10 +39,10 @@ struct AIView: View {
                     .strokeBorder(Palette.stroke, lineWidth: 1)
             )
             .overlay {
-                // Страница сама принимает файл; зону подсвечиваем, пока над ней тащат.
                 if model.notch?.dropHover == true {
-                    DropZoneOverlay(label: "Отпусти, чтобы отправить в чат", hovering: true,
-                                    outerRadius: 16, outerInset: 0)
+                    DropZoneOverlay(
+                        label: "Отпусти, чтобы отправить в чат", hovering: true,
+                        outerRadius: 16, outerInset: 0)
                 }
             }
             .animation(.easeOut(duration: 0.15), value: model.notch?.dropHover)
@@ -53,19 +52,16 @@ struct AIView: View {
             model.ensureCurrentVisible()
             model.setViewShown(true)
         }
-        // Ушли с вкладки — шторка снова может закрываться.
         .onDisappear {
             model.setTyping(false)
             model.setViewShown(false)
         }
-        // Шторка закрылась — фокус ввода больше не держим.
         .onChange(of: model.notch?.state.phase) { _, phase in
             if phase != .open { model.setTyping(false) }
             model.updateIdleTimer()
         }
     }
 
-    /// Переключатель сервисов: капсулы с названием -> только иконки -> иконки со скроллом.
     private var servicePicker: some View {
         ViewThatFits(in: .horizontal) {
             chips(showNames: true)
@@ -119,7 +115,6 @@ private struct ServiceChip: View {
     }
 }
 
-/// Адресная строка «Браузера».
 private struct BrowserBar: View {
     @Bindable var model: AIModel
     @FocusState private var focused: Bool
@@ -158,7 +153,6 @@ private struct BrowserBar: View {
     }
 }
 
-/// Показывает готовый WKWebView внутри SwiftUI и подменяет его при смене сервиса.
 private struct WebContainer: NSViewRepresentable {
     let webView: WKWebView
 

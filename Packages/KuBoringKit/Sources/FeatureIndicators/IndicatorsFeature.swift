@@ -1,14 +1,11 @@
 import SwiftUI
 import KuBoringCore
 
-/// Ключи подфункций «Индикаторов».
 enum IndicatorsKeys {
     static let charging = SettingKey<Bool>("feature.indicators.charging", default: true)
-    /// Нужен доступ к папке «Загрузки» — выключено по умолчанию.
     static let downloads = SettingKey<Bool>("feature.indicators.downloads", default: false)
 }
 
-/// Фоновая фича: живые индикаторы в закрытой шторке — загрузки и зарядка.
 @MainActor
 public final class IndicatorsFeature: NotchFeature {
     public let id = "indicators"
@@ -40,7 +37,6 @@ public final class IndicatorsFeature: NotchFeature {
         settings = nil
     }
 
-    /// Включить/выключить подфункции по настройкам.
     func apply() {
         guard let settings else { return }
         settings[IndicatorsKeys.downloads] ? downloads?.start() : downloads?.stop()
@@ -62,20 +58,26 @@ struct IndicatorsSettingsView: View {
     let onChange: () -> Void
 
     private func flag(_ key: SettingKey<Bool>) -> Binding<Bool> {
-        Binding(get: { settings[key] }, set: { settings[key] = $0; onChange() })
+        Binding(
+            get: { settings[key] },
+            set: {
+                settings[key] = $0; onChange()
+            })
     }
 
     var body: some View {
         Group {
             SettingsSection("Загрузки", footer: "При включении macOS один раз спросит доступ к папке «Загрузки».") {
-                SettingsToggle("Прогресс загрузок",
-                               hint: "Safari, Chrome, Firefox и другие браузеры: процент или размер скачанного в закрытой шторке.",
-                               isOn: flag(IndicatorsKeys.downloads))
+                SettingsToggle(
+                    "Прогресс загрузок",
+                    hint: "Safari, Chrome, Firefox и другие браузеры: процент или размер скачанного в закрытой шторке.",
+                    isOn: flag(IndicatorsKeys.downloads))
             }
             SettingsSection("Зарядка") {
-                SettingsToggle("Анимация подключения зарядки",
-                               hint: "Короткая анимация молнии у выреза, когда подключаешь зарядку.",
-                               isOn: flag(IndicatorsKeys.charging))
+                SettingsToggle(
+                    "Анимация подключения зарядки",
+                    hint: "Короткая анимация молнии у выреза, когда подключаешь зарядку.",
+                    isOn: flag(IndicatorsKeys.charging))
             }
             SettingsSection("Сброс") {
                 SettingsResetButton {

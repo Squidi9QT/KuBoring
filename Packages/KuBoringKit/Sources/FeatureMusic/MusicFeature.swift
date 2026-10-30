@@ -31,13 +31,14 @@ public final class MusicFeature: NotchFeature {
     public func start(_ context: FeatureContext) {
         self.context = context
         model.settings = context.settings
-        let script = adapterScriptURL
+        let script =
+            adapterScriptURL
             ?? Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl")
-        let framework = frameworkURL
+        let framework =
+            frameworkURL
             ?? Bundle.main.privateFrameworksURL?.appendingPathComponent("MediaRemoteAdapter.framework")
         model.onChange = { [weak self] in self?.refreshActivity() }
         model.start(script: script, framework: framework)
-        // Системное уведомление AppKit: при выходе гасим perl-адаптер, чтобы он не остался сиротой.
         quitObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -64,12 +65,14 @@ public final class MusicFeature: NotchFeature {
 
     public func makeSettingsView() -> AnyView? {
         let settings = context?.settings ?? SettingsStore()
-        return AnyView(MusicSettingsView(settings: settings, onChange: { [weak self] in
-            self?.refreshActivity()
-        }))
+        return AnyView(
+            MusicSettingsView(
+                settings: settings,
+                onChange: { [weak self] in
+                    self?.refreshActivity()
+                }))
     }
 
-    /// Показывать активность только пока играет и включено в настройках.
     private func refreshActivity() {
         guard let context else { return }
         let show = context.settings[MusicKeys.showInClosed] && (model.track?.playing ?? false)
@@ -78,12 +81,13 @@ public final class MusicFeature: NotchFeature {
             activityPosted = true
             let m = model
             let s = context.settings
-            context.activities.post(LiveActivity(
-                id: "music",
-                priority: 50,
-                leading: AnyView(MusicMiniCover(model: m)),
-                trailing: AnyView(MusicEqualizer(model: m, settings: s))
-            ))
+            context.activities.post(
+                LiveActivity(
+                    id: "music",
+                    priority: 50,
+                    leading: AnyView(MusicMiniCover(model: m)),
+                    trailing: AnyView(MusicEqualizer(model: m, settings: s))
+                ))
         } else if activityPosted {
             activityPosted = false
             context.activities.remove(id: "music")
@@ -97,26 +101,39 @@ struct MusicSettingsView: View {
 
     var body: some View {
         Group {
-            SettingsSection("Закрытая шторка", footer: "Мини-обложка и полоски появляются рядом с вырезом, пока играет музыка.") {
-                SettingsToggle("Показывать в закрытой шторке",
-                               hint: "Обложка слева, эквалайзер справа",
-                               isOn: settings.binding(MusicKeys.showInClosed))
-                SettingsToggle("Анимировать полоски",
-                               hint: "Если выключить, полоски будут статичными",
-                               isOn: settings.binding(MusicKeys.animateBars))
+            SettingsSection(
+                "Закрытая шторка", footer: "Мини-обложка и полоски появляются рядом с вырезом, пока играет музыка."
+            ) {
+                SettingsToggle(
+                    "Показывать в закрытой шторке",
+                    hint: "Обложка слева, эквалайзер справа",
+                    isOn: settings.binding(MusicKeys.showInClosed))
+                SettingsToggle(
+                    "Анимировать полоски",
+                    hint: "Если выключить, полоски будут статичными",
+                    isOn: settings.binding(MusicKeys.animateBars))
             }
-            SettingsSection("Текст песен", footer: "Тексты берутся с бесплатного сервиса lrclib.net: туда уходят только название, исполнитель и длительность трека.") {
-                SettingsToggle("Кнопка «Текст песни»",
-                               hint: "Во вкладке музыки появится кнопка: вместо названия трека строчки песни подсвечиваются в такт.",
-                               isOn: settings.binding(MusicKeys.lyricsEnabled))
+            SettingsSection(
+                "Текст песен",
+                footer:
+                    "Тексты берутся с бесплатного сервиса lrclib.net: туда уходят только название, исполнитель и длительность трека."
+            ) {
+                SettingsToggle(
+                    "Кнопка «Текст песни»",
+                    hint:
+                        "Во вкладке музыки появится кнопка: вместо названия трека строчки песни подсвечиваются в такт.",
+                    isOn: settings.binding(MusicKeys.lyricsEnabled))
             }
             SettingsSection("Источники") {
-                SettingsPicker("Что показывать",
-                               hint: "Например, чтобы YouTube в браузере не появлялся в шторке",
-                               selection: settings.binding(MusicKeys.sourceMode),
-                               options: [(MusicSourceMode.all, "Всё"),
-                                         (MusicSourceMode.musicOnly, "Только музыкальные приложения"),
-                                         (MusicSourceMode.manual, "Выбрать вручную")])
+                SettingsPicker(
+                    "Что показывать",
+                    hint: "Например, чтобы YouTube в браузере не появлялся в шторке",
+                    selection: settings.binding(MusicKeys.sourceMode),
+                    options: [
+                        (MusicSourceMode.all, "Всё"),
+                        (MusicSourceMode.musicOnly, "Только музыкальные приложения"),
+                        (MusicSourceMode.manual, "Выбрать вручную"),
+                    ])
                 if settings[MusicKeys.sourceMode] == MusicSourceMode.manual {
                     MusicSourcesList(settings: settings)
                 }

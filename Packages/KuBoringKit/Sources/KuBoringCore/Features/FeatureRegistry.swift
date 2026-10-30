@@ -5,7 +5,6 @@ import Observation
 public final class FeatureRegistry {
     @ObservationIgnored private let context: FeatureContext
     @ObservationIgnored private var running: Set<String> = []
-    /// Кэш вью вкладок: не пересоздаём makeTabView() на каждую перерисовку.
     @ObservationIgnored private var tabViewCache: [String: AnyView] = [:]
     private var features: [NotchFeature] = []
 
@@ -27,7 +26,6 @@ public final class FeatureRegistry {
         context.settings[featureEnabledKey(feature.id, default: feature.enabledByDefault)]
     }
 
-    /// Все фичи с вкладкой (включённые и нет) в порядке CoreKeys.tabOrder.
     public var orderedTabFeatures: [NotchFeature] {
         let tabs = features.filter { $0.kind == .tab }
         let order = context.settings[CoreKeys.tabOrder]
@@ -41,18 +39,15 @@ public final class FeatureRegistry {
         return result
     }
 
-    /// Включённые вкладки в порядке CoreKeys.tabOrder.
     public var enabledTabs: [NotchFeature] {
         orderedTabFeatures.filter { isEnabled($0) }
     }
 
-    /// Выбранная вкладка; если её нет среди включённых — первая включённая.
     public func resolvedTab(_ selected: String?) -> NotchFeature? {
         let tabs = enabledTabs
         return tabs.first(where: { $0.id == selected }) ?? tabs.first
     }
 
-    /// Вью вкладки из кэша (создаётся один раз, пока фича включена).
     public func tabView(for feature: NotchFeature) -> AnyView? {
         if let cached = tabViewCache[feature.id] { return cached }
         guard let view = feature.makeTabView() else { return nil }
@@ -60,12 +55,10 @@ public final class FeatureRegistry {
         return view
     }
 
-    /// Все фичи без вкладки.
     public var backgroundFeatures: [NotchFeature] {
         features.filter { $0.kind == .background }
     }
 
-    /// Перестановка вкладок (для List.onMove).
     public func moveTabs(from source: IndexSet, to destination: Int) {
         var ids = orderedTabFeatures.map(\.id)
         ids.move(fromOffsets: source, toOffset: destination)

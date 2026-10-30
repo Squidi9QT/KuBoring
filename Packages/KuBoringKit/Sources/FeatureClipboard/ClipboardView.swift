@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 import KuBoringCore
 
-/// Вкладка «Буфер».
 struct ClipboardView: View {
     @Bindable var model: ClipboardModel
     @FocusState private var searchFocused: Bool
@@ -34,7 +33,6 @@ struct ClipboardView: View {
                         .foregroundStyle(Color.white)
                         .focused($searchFocused)
                         .onChange(of: model.query) { _, _ in
-                            // Новый поиск — выделение на первый результат.
                             if model.keyboardMode { model.selectedID = model.visibleItems.first?.id }
                         }
                 }
@@ -44,7 +42,6 @@ struct ClipboardView: View {
                 .contentShape(Capsule())
                 .onTapGesture { searchFocused = true }
                 .onChange(of: searchFocused) { _, focused in
-                    // Пока печатаем в поиске, шторка не должна закрываться.
                     model.notch?.hold("clipboard.search", focused)
                 }
 
@@ -61,8 +58,11 @@ struct ClipboardView: View {
             }
 
             if model.items.isEmpty {
-                EmptyHint(symbol: "list.clipboard", title: "Пока пусто",
-                          subtitle: "Скопируй текст или картинку — они появятся здесь.\nПароли из менеджеров паролей не сохраняются.")
+                EmptyHint(
+                    symbol: "list.clipboard", title: "Пока пусто",
+                    subtitle:
+                        "Скопируй текст или картинку — они появятся здесь.\nПароли из менеджеров паролей не сохраняются."
+                )
             } else if list.isEmpty {
                 EmptyHint(symbol: "magnifyingglass", title: "Ничего не найдено")
             } else {
@@ -70,10 +70,12 @@ struct ClipboardView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(spacing: 2 * k) {
                             ForEach(list) { item in
-                                ClipRow(item: item, model: model, k: k,
-                                        copied: model.justCopiedID == item.id,
-                                        selected: model.keyboardMode && model.selectedID == item.id)
-                                    .id(item.id)
+                                ClipRow(
+                                    item: item, model: model, k: k,
+                                    copied: model.justCopiedID == item.id,
+                                    selected: model.keyboardMode && model.selectedID == item.id
+                                )
+                                .id(item.id)
                             }
                         }
                     }
@@ -99,7 +101,6 @@ private struct ClipRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            // Запись и кнопки — отдельные кнопки.
             Button {
                 withAnimation(.smooth) {
                     if model.keyboardMode { model.choose(item) } else { model.copy(item) }
@@ -116,8 +117,10 @@ private struct ClipRow: View {
         }
         .padding(.horizontal, 12 * k)
         .frame(height: (item.isImage ? 44 : 32) * k)
-        .background(RoundedRectangle(cornerRadius: 10 * k, style: .continuous)
-            .fill(selected ? Color.accentColor.opacity(0.35) : (hover ? Palette.surfaceHover : Color.clear)))
+        .background(
+            RoundedRectangle(cornerRadius: 10 * k, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.35) : (hover ? Palette.surfaceHover : Color.clear))
+        )
         .onHover { hover = $0 }
         .contextMenu {
             Button(item.pinned ? "Открепить" : "Закрепить") { withAnimation(.smooth) { model.togglePin(item) } }
@@ -142,11 +145,13 @@ private struct ClipRow: View {
                     .font(.system(size: 11 * k))
                     .foregroundStyle(Palette.tertiary)
             } else {
-                Text(item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .replacingOccurrences(of: "\n", with: " "))
-                    .font(.system(size: 13 * k))
-                    .foregroundStyle(Color.white.opacity(0.92))
-                    .lineLimit(1)
+                Text(
+                    item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\n", with: " ")
+                )
+                .font(.system(size: 13 * k))
+                .foregroundStyle(Color.white.opacity(0.92))
+                .lineLimit(1)
             }
         }
     }
@@ -174,7 +179,9 @@ private struct ClipRow: View {
     }
 
     private func rowButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
-        Button { withAnimation(.smooth) { action() } } label: {
+        Button {
+            withAnimation(.smooth) { action() }
+        } label: {
             Image(systemName: symbol)
                 .font(.system(size: 10 * k, weight: .bold))
                 .foregroundStyle(Palette.tertiary)

@@ -23,9 +23,11 @@ struct MusicTabView: View {
                     Image(systemName: "music.note")
                         .font(.system(size: 30))
                         .foregroundStyle(.white.opacity(0.35))
-                    Text(model.sourceHidden ? "Сейчас ничего не играет" : (model.unavailableReason ?? "Ничего не играет"))
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.5))
+                    Text(
+                        model.sourceHidden ? "Сейчас ничего не играет" : (model.unavailableReason ?? "Ничего не играет")
+                    )
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.5))
                     if model.sourceHidden {
                         Text("Источник скрыт в настройках")
                             .font(.system(size: 11))
@@ -58,7 +60,8 @@ struct NowPlayingView: View {
             let side: CGFloat = mode == .compact ? adaptiveClamp(h * 0.3, 22, 32) : adaptiveClamp(26 * k, 22, 44)
             let play = adaptiveClamp(side * 1.35, 30, 60)
             let gap = adaptiveClamp(cover * 0.16, 10, 32)
-            let layout = mode == .tall
+            let layout =
+                mode == .tall
                 ? AnyLayout(VStackLayout(alignment: .center, spacing: adaptiveClamp(8 * k, 6, 16)))
                 : AnyLayout(HStackLayout(alignment: .center, spacing: gap))
 
@@ -100,9 +103,10 @@ struct NowPlayingView: View {
         case .regular:
             VStack(alignment: .leading, spacing: adaptiveClamp(8 * k, 6, 18)) {
                 topBlock(k: k, centered: false)
-                MusicSeekBar(model: model, track: track,
-                             barHeight: adaptiveClamp(5 * k, 4, 8),
-                             fontSize: adaptiveClamp(10 * k, 9, 14))
+                MusicSeekBar(
+                    model: model, track: track,
+                    barHeight: adaptiveClamp(5 * k, 4, 8),
+                    fontSize: adaptiveClamp(10 * k, 9, 14))
                 controls(side: side, play: play, spacing: side * 0.9)
                     .frame(maxWidth: .infinity)
             }
@@ -110,9 +114,10 @@ struct NowPlayingView: View {
         case .tall:
             VStack(alignment: .center, spacing: adaptiveClamp(8 * k, 6, 18)) {
                 topBlock(k: k, centered: true)
-                MusicSeekBar(model: model, track: track,
-                             barHeight: adaptiveClamp(5 * k, 4, 8),
-                             fontSize: adaptiveClamp(10 * k, 9, 14))
+                MusicSeekBar(
+                    model: model, track: track,
+                    barHeight: adaptiveClamp(5 * k, 4, 8),
+                    fontSize: adaptiveClamp(10 * k, 9, 14))
                 controls(side: side, play: play, spacing: side * 0.9)
                     .frame(maxWidth: .infinity)
             }
@@ -123,7 +128,6 @@ struct NowPlayingView: View {
     private var lyricsAvailable: Bool { model.settings?[MusicKeys.lyricsEnabled] ?? true }
     private var lyricsShown: Bool { lyricsAvailable && (model.settings?[MusicKeys.lyricsShown] ?? false) }
 
-    /// Название и исполнитель — или текст песни, если он включён кнопкой.
     @ViewBuilder
     private func topBlock(k: CGFloat, centered: Bool) -> some View {
         if lyricsShown {
@@ -188,19 +192,25 @@ struct NowPlayingView: View {
 
     private func controls(side: CGFloat, play: CGFloat, spacing: CGFloat) -> some View {
         HStack(spacing: spacing) {
-            Button { model.previous() } label: {
+            Button {
+                model.previous()
+            } label: {
                 Image(systemName: "backward.fill")
                     .font(.system(size: side * 0.5, weight: .semibold))
                     .frame(width: side, height: side)
                     .contentShape(Rectangle())
             }
-            Button { model.togglePlayPause() } label: {
+            Button {
+                model.togglePlayPause()
+            } label: {
                 Image(systemName: track.playing ? "pause.fill" : "play.fill")
                     .font(.system(size: play * 0.55, weight: .semibold))
                     .frame(width: play, height: play)
                     .contentShape(Rectangle())
             }
-            Button { model.next() } label: {
+            Button {
+                model.next()
+            } label: {
                 Image(systemName: "forward.fill")
                     .font(.system(size: side * 0.5, weight: .semibold))
                     .frame(width: side, height: side)
@@ -224,14 +234,12 @@ struct NowPlayingView: View {
                 }
                 .buttonStyle(.plain)
                 .help(lyricsShown ? "Показать название" : "Текст песни")
-                // За пределами тройки кнопок, чтобы не сдвигать её центр.
                 .offset(x: side + spacing)
             }
         }
     }
 }
 
-/// Прогресс-бар: позиция интерполируется по времени, перетаскивание = перемотка.
 struct MusicSeekBar: View {
     let model: MusicModel
     let track: MusicTrack
@@ -241,12 +249,9 @@ struct MusicSeekBar: View {
     @State private var dragFraction: Double?
     private var display: MusicDisplayState { model.display }
 
-    /// Шаг обновления; ширина полоски между шагами доезжает линейной анимацией, без рывков.
     private static let tick: Double = 0.25
 
     var body: some View {
-        // Один и тот же TimelineView всегда (вид не пересоздаётся на паузе — жест не срывается);
-        // тикает только пока трек играет и экран виден.
         TimelineView(.animation(minimumInterval: Self.tick, paused: !(track.playing && display.visible))) { ctx in
             content(at: ctx.date)
         }
@@ -254,58 +259,54 @@ struct MusicSeekBar: View {
 
     @ViewBuilder
     private func content(at date: Date) -> some View {
-            let pos = track.position(at: date)
-            let frac = track.duration > 0 ? min(1, pos / track.duration) : 0
-            let shown = dragFraction ?? frac
-            // Плавно — только при обычном ходе трека; при перетаскивании и на паузе полоска стоит под пальцем.
-            let smooth: Animation? = (dragFraction == nil && track.playing) ? .linear(duration: Self.tick) : nil
-            VStack(spacing: 3) {
-                GeometryReader { geo in
-                    let width = max(1, geo.size.width)
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(.white.opacity(track.duration > 0 ? 0.2 : 0.1))
-                            .frame(height: dragFraction == nil ? barHeight : barHeight + 3)
-                        Capsule().fill(.white)
-                            .frame(width: width * shown, height: dragFraction == nil ? barHeight : barHeight + 3)
-                            .animation(smooth, value: shown)
-                    }
-                    .frame(width: width, height: geo.size.height)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                guard track.duration > 0 else { return }
-                                dragFraction = min(1, max(0, value.location.x / width))
-                            }
-                            .onEnded { value in
-                                guard track.duration > 0 else { dragFraction = nil; return }
-                                let f = min(1, max(0, value.location.x / width))
-                                model.seek(to: f * track.duration)
-                                dragFraction = nil
-                            }
-                    )
+        let pos = track.position(at: date)
+        let frac = track.duration > 0 ? min(1, pos / track.duration) : 0
+        let shown = dragFraction ?? frac
+        let smooth: Animation? = (dragFraction == nil && track.playing) ? .linear(duration: Self.tick) : nil
+        VStack(spacing: 3) {
+            GeometryReader { geo in
+                let width = max(1, geo.size.width)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(track.duration > 0 ? 0.2 : 0.1))
+                        .frame(height: dragFraction == nil ? barHeight : barHeight + 3)
+                    Capsule().fill(.white)
+                        .frame(width: width * shown, height: dragFraction == nil ? barHeight : barHeight + 3)
+                        .animation(smooth, value: shown)
                 }
-                // Зона нажатия заметно выше самой полоски, чтобы в тонкую полоску было легко попасть.
-                .frame(height: max(16, barHeight + 10))
-                .animation(.easeOut(duration: 0.12), value: dragFraction == nil)
-
-                if showTimes {
-                    HStack {
-                        // Без длительности (эфир, часть браузеров) показываем просто прошедшее время.
-                        Text(musicFormatTime(track.duration > 0 ? shown * track.duration : pos))
-                        Spacer()
-                        Text(track.duration > 0 ? musicFormatTime(track.duration) : "--:--")
-                    }
-                    .font(.system(size: fontSize).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.55))
-                }
+                .frame(width: width, height: geo.size.height)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            guard track.duration > 0 else { return }
+                            dragFraction = min(1, max(0, value.location.x / width))
+                        }
+                        .onEnded { value in
+                            guard track.duration > 0 else { dragFraction = nil; return }
+                            let f = min(1, max(0, value.location.x / width))
+                            model.seek(to: f * track.duration)
+                            dragFraction = nil
+                        }
+                )
             }
+            .frame(height: max(16, barHeight + 10))
+            .animation(.easeOut(duration: 0.12), value: dragFraction == nil)
+
+            if showTimes {
+                HStack {
+                    Text(musicFormatTime(track.duration > 0 ? shown * track.duration : pos))
+                    Spacer()
+                    Text(track.duration > 0 ? musicFormatTime(track.duration) : "--:--")
+                }
+                .font(.system(size: fontSize).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.55))
+            }
+        }
     }
 }
 
 // MARK: Текст песни
 
-/// Текущая строка крупно, следующая — бледнее. Строка меняется в такт треку.
 struct LyricsBlock: View {
     let model: MusicModel
     let track: MusicTrack
@@ -340,8 +341,11 @@ struct LyricsBlock: View {
             let next = all[(index.map { $0 + 1 } ?? 0)...].first { !$0.text.isEmpty }?.text ?? ""
             lines(current.isEmpty ? "♪" : current, next, dimFirst: false)
                 .id(index ?? -1)
-                .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
-                                        removal: .move(edge: .top).combined(with: .opacity)))
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity))
+                )
                 .animation(.easeOut(duration: 0.3), value: index)
         }
     }
@@ -387,7 +391,6 @@ struct MusicMiniCover: View {
     }
 }
 
-/// Видимость экрана: пауза анимаций, когда экран спит или приложение полностью перекрыто.
 @MainActor @Observable
 final class MusicDisplayState {
     private(set) var screenAsleep = false
@@ -399,18 +402,33 @@ final class MusicDisplayState {
     init() {
         let ws = NSWorkspace.shared.notificationCenter
         let nc = NotificationCenter.default
-        tokens.append((ws, ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.screenAsleep = true }
-        }))
-        tokens.append((ws, ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.screenAsleep = false }
-        }))
-        tokens.append((nc, nc.addObserver(forName: NSApplication.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.occluded = !NSApp.occlusionState.contains(.visible)
-            }
-        }))
+        tokens.append(
+            (
+                ws,
+                ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) {
+                    [weak self] _ in
+                    Task { @MainActor in self?.screenAsleep = true }
+                }
+            ))
+        tokens.append(
+            (
+                ws,
+                ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) {
+                    [weak self] _ in
+                    Task { @MainActor in self?.screenAsleep = false }
+                }
+            ))
+        tokens.append(
+            (
+                nc,
+                nc.addObserver(forName: NSApplication.didChangeOcclusionStateNotification, object: nil, queue: .main) {
+                    [weak self] _ in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.occluded = !NSApp.occlusionState.contains(.visible)
+                    }
+                }
+            ))
     }
 
     deinit {
@@ -418,7 +436,6 @@ final class MusicDisplayState {
     }
 }
 
-/// Эквалайзер: у каждой полоски своя бесконечная анимация масштаба (без покадровой перерисовки).
 struct MusicEqualizer: View {
     let model: MusicModel
     let settings: SettingsStore
@@ -451,7 +468,8 @@ private struct MusicEqualizerBar: View {
                 running
                     ? .easeInOut(duration: duration).repeatForever(autoreverses: true).delay(Double(index) * 0.07)
                     : .easeOut(duration: 0.2),
-                value: up)
+                value: up
+            )
             .onAppear { up = running }
             .onChange(of: running) { _, now in up = now }
     }

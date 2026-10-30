@@ -1,10 +1,5 @@
 import SwiftUI
 
-/// Зона-приёмник файла: ровная рамка, вписанная в область контента с одинаковым отступом `inset`
-/// (10 pt) со всех сторон. Углы рамки концентричны внешнему контуру:
-/// cornerRadius = max(8, outerRadius - outerInset - inset), где outerRadius — радиус внешнего контура
-/// (нижние углы шторки или скругление WebView), outerInset — расстояние от этого контура до области
-/// оверлея. Координаты и размеры округляются до целых точек. Сама события мыши не ловит.
 public struct DropZoneOverlay: View {
     public let label: String
     public let hovering: Bool
@@ -13,9 +8,11 @@ public struct DropZoneOverlay: View {
     public let inset: Double
     public let showsLabel: Bool
 
-    public init(label: String, hovering: Bool,
-                outerRadius: Double = 24, outerInset: Double = 0, inset: Double = 10,
-                showsLabel: Bool = true) {
+    public init(
+        label: String, hovering: Bool,
+        outerRadius: Double = 24, outerInset: Double = 0, inset: Double = 10,
+        showsLabel: Bool = true
+    ) {
         self.showsLabel = showsLabel
         self.label = label
         self.hovering = hovering
@@ -28,7 +25,6 @@ public struct DropZoneOverlay: View {
         let ins = CGFloat(inset.rounded())
         let radius = CGFloat(max(8, (outerRadius - outerInset - inset).rounded()))
         GeometryReader { geo in
-            // Размер вписанной рамки — целый; отступы с обеих сторон равны.
             let w = max(0, (geo.size.width - 2 * ins).rounded())
             let h = max(0, (geo.size.height - 2 * ins).rounded())
             let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)

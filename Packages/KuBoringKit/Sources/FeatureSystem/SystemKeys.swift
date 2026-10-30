@@ -1,6 +1,5 @@
 import KuBoringCore
 
-/// Ключи настроек подфункций. Все по умолчанию выключены.
 enum SystemKeys {
     static let hudVolume = SettingKey<Bool>("feature.system.hudVolume", default: false)
     static let hudBrightness = SettingKey<Bool>("feature.system.hudBrightness", default: false)

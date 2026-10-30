@@ -1,6 +1,5 @@
 import SwiftUI
 
-/// Подпись + серая подсказка под ней.
 private struct SettingsLabel: View {
     let title: String
     let hint: String?
@@ -18,7 +17,6 @@ private struct SettingsLabel: View {
     }
 }
 
-/// Группа настроек (внутри Form со стилем .grouped).
 public struct SettingsSection<Content: View>: View {
     private let title: String
     private let footer: String?
@@ -72,8 +70,10 @@ public struct SettingsSlider: View {
     private let step: Double
     private let unit: String
 
-    public init(_ title: String, hint: String? = nil, value: Binding<Double>,
-                in range: ClosedRange<Double>, step: Double = 1, unit: String = "") {
+    public init(
+        _ title: String, hint: String? = nil, value: Binding<Double>,
+        in range: ClosedRange<Double>, step: Double = 1, unit: String = ""
+    ) {
         self.title = title
         self.hint = hint
         self.value = value

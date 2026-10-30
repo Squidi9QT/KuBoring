@@ -2,19 +2,16 @@ import AppKit
 import SwiftUI
 import Observation
 
-/// Панель без рамки: может принимать ввод (поля в вкладках), но не активирует приложение.
 final class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// Клик по шторке делает её key (для ввода текста), не активируя чужие окна и само приложение.
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown, !isKeyWindow { makeKey() }
         super.sendEvent(event)
     }
 }
 
-/// Контейнер, принимающий перетаскивание файлов и передающий его в контроллер окна.
 @MainActor
 final class NotchDropView: NSView {
     weak var owner: NotchWindowController?
@@ -26,12 +23,10 @@ final class NotchDropView: NSView {
         setAcceptsDrags(true)
     }
 
-    /// false — не быть приёмником (веб-страница вкладки сама принимает файлы).
     func setAcceptsDrags(_ on: Bool) {
         guard on != registered else { return }
         registered = on
         if on {
-            // Файлы-«обещания» (Фото, Почта, превью скриншота, часть браузеров) приходят без fileURL.
             let promised = NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) }
             registerForDraggedTypes([.fileURL] + promised)
         } else {
@@ -41,15 +36,13 @@ final class NotchDropView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) не используется") }
 
-    /// Перетаскивание начато в самом приложении (файл тянут с полки наружу) — это не приём файла.
     private func isOwnDrag(_ sender: NSDraggingInfo) -> Bool {
         sender.draggingSource != nil
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        NSLog("[KuDrag] draggingEntered, registered=\(registeredDraggedTypes)")
         guard !isOwnDrag(sender) else { return [] }
-        guard let owner, owner.dragEntered() else { NSLog("[KuDrag] dragEntered -> false"); return [] }
+        guard let owner, owner.dragEntered() else { return [] }
         owner.dragMoved(to: topLeftPoint(sender.draggingLocation))
         return .copy
     }
@@ -60,7 +53,6 @@ final class NotchDropView: NSView {
         return .copy
     }
 
-    /// Точка из координат окна (начало снизу-слева) в координаты с началом сверху-слева (как SwiftUI .global).
     private func topLeftPoint(_ p: NSPoint) -> CGPoint {
         CGPoint(x: p.x, y: bounds.height - p.y)
     }
@@ -76,14 +68,14 @@ final class NotchDropView: NSView {
     override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { !isOwnDrag(sender) }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        NSLog("[KuDrag] performDragOperation")
         guard !isOwnDrag(sender) else { return false }
         let pasteboard = sender.draggingPasteboard
-        let objects = pasteboard.readObjects(
-            forClasses: [NSURL.self],
-            options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        // Обещания читаем, только если обычных файлов нет: многие источники кладут и то и другое.
-        let promises = objects.isEmpty
+        let objects =
+            pasteboard.readObjects(
+                forClasses: [NSURL.self],
+                options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        let promises =
+            objects.isEmpty
             ? (pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil)
                 as? [NSFilePromiseReceiver] ?? [])
             : []
@@ -92,14 +84,15 @@ final class NotchDropView: NSView {
         return !objects.isEmpty || !promises.isEmpty
     }
 
-    /// Сохраняет файлы-обещания в папку приложения и отдаёт их на полку, когда они записаны.
     private func receive(_ promises: [NSFilePromiseReceiver]) {
         guard let destination = Self.makePromiseDirectory() else { return }
         let queue = OperationQueue()
         queue.qualityOfService = .userInitiated
         for promise in promises {
-            promise.receivePromisedFiles(atDestination: destination, options: [:],
-                                         operationQueue: queue) { [weak self] url, error in
+            promise.receivePromisedFiles(
+                atDestination: destination, options: [:],
+                operationQueue: queue
+            ) { [weak self] url, error in
                 guard error == nil else { return }
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated { self?.owner?.droppedPromised([url]) }
@@ -108,7 +101,6 @@ final class NotchDropView: NSView {
         }
     }
 
-    /// ~/Library/Application Support/<приложение>/Dropped/<uuid> — своя папка на каждый drop, без конфликтов имён.
     private static func makePromiseDirectory() -> URL? {
         guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         else { return nil }
@@ -125,7 +117,6 @@ final class NotchDropView: NSView {
     }
 }
 
-/// Окно шторки для одного экрана.
 @MainActor
 final class NotchWindowController {
     let screen: NSScreen
@@ -148,25 +139,23 @@ final class NotchWindowController {
     private var observers: [NSObjectProtocol] = []
     private var inside = false
     private var dragActive = false
-    /// Опрос курсора, пока зажата кнопка мыши: во время системного перетаскивания
-    /// мониторы почти не получают событий, и окно иначе осталось бы «сквозным».
     private var pressPoll: Task<Void, Never>?
     private var pressDragCount = 0
     private var tornDown = false
-    /// Нажатие снаружи открытой шторки: засчитывается кликом только на отпускании без перетаскивания.
     private var pendingOutsideClick: NSPoint?
     private var pendingMoved = false
     private var pendingPasteboardCount = 0
     private var stayOpenApplied = false
     private var handledFocusRequest = 0
-    /// Подписки на открытие/закрытие меню (отдельно от observers: те проверяются на пустоту).
     private var menuObservers: [NSObjectProtocol] = []
     private var menuHoldActive = false
 
-    init(screen: NSScreen, settings: SettingsStore, notch: NotchController,
-         activities: ActivityCenter, registry: FeatureRegistry, arbiter: NotchScreenArbiter,
-         battery: BatteryMonitor, controls: QuickControls,
-         onOpenSettings: (() -> Void)? = nil) {
+    init(
+        screen: NSScreen, settings: SettingsStore, notch: NotchController,
+        activities: ActivityCenter, registry: FeatureRegistry, arbiter: NotchScreenArbiter,
+        battery: BatteryMonitor, controls: QuickControls,
+        onOpenSettings: (() -> Void)? = nil
+    ) {
         self.onOpenSettings = onOpenSettings
         self.screen = screen
         self.displayID = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) ?? 0
@@ -178,9 +167,10 @@ final class NotchWindowController {
         self.physicalNotch = ScreenMetrics.notchSize(for: screen)
         self.hasNotch = ScreenMetrics.hasNotch(screen)
 
-        panel = NotchPanel(contentRect: .zero,
-                           styleMask: [.borderless, .nonactivatingPanel],
-                           backing: .buffered, defer: false)
+        panel = NotchPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -195,11 +185,12 @@ final class NotchWindowController {
 
         let container = NotchDropView(frame: .zero)
         dropView = container
-        let root = NotchRootView(displayID: displayID, physicalNotch: physicalNotch, hasNotch: hasNotch,
-                                 settings: settings, notch: notch, activities: activities,
-                                 registry: registry, arbiter: arbiter,
-                                 battery: battery, controls: controls,
-                                 onOpenSettings: onOpenSettings)
+        let root = NotchRootView(
+            displayID: displayID, physicalNotch: physicalNotch, hasNotch: hasNotch,
+            settings: settings, notch: notch, activities: activities,
+            registry: registry, arbiter: arbiter,
+            battery: battery, controls: controls,
+            onOpenSettings: onOpenSettings)
         let hosting = NSHostingView(rootView: root)
         hosting.sizingOptions = []
         hosting.frame = container.bounds
@@ -224,7 +215,6 @@ final class NotchWindowController {
 
     func tearDown() {
         tornDown = true
-        // Снять удержание вкладки: новый контроллер выставит его заново, а старое не залипнет.
         if stayOpenApplied {
             stayOpenApplied = false
             notch.hold("tab.stayOpen", false)
@@ -248,12 +238,10 @@ final class NotchWindowController {
 
     // MARK: Размеры и зоны
 
-    /// Кэш геометрии: обновляется при изменении настроек (trackChanges), а не на каждое движение мыши.
     private var geometryCache: NotchGeometry?
     private var geometry: NotchGeometry { geometryCache ?? settings[CoreKeys.geometry].clamped() }
     private var isActive: Bool { arbiter.activeID == displayID }
 
-    /// Окно большое и прозрачное: вмещает самую большую шторку.
     private func panelSize() -> CGSize {
         let g = geometry
         var w = max(g.openWidth, 900)
@@ -271,8 +259,9 @@ final class NotchWindowController {
         geometryCache = settings[CoreKeys.geometry].clamped()
         let size = panelSize()
         let f = screen.frame
-        let frame = NSRect(x: f.midX - size.width / 2, y: f.maxY - size.height,
-                           width: size.width, height: size.height)
+        let frame = NSRect(
+            x: f.midX - size.width / 2, y: f.maxY - size.height,
+            width: size.width, height: size.height)
         if panel.frame != frame { panel.setFrame(frame, display: true) }
     }
 
@@ -280,18 +269,19 @@ final class NotchWindowController {
         isActive && (notch.state.phase == .open || notch.state.phase == .dragging)
     }
 
-    /// Прямоугольник видимой формы шторки в координатах экрана (с запасом по бокам и сверху).
     private func shapeRect() -> NSRect {
         let g = geometry
         var size: CGSize
         var ear: Double
         if expanded {
-            let preferred = notch.batteryPanelOpen ? nil : registry.resolvedTab(notch.state.selectedTab)?.preferredOpenSize
+            let preferred =
+                notch.batteryPanelOpen ? nil : registry.resolvedTab(notch.state.selectedTab)?.preferredOpenSize
             size = NotchLayout.openSize(g, preferred: preferred)
             ear = NotchLayout.maxEar(g)
         } else {
-            size = NotchLayout.closedSize(g, physical: physicalNotch,
-                                          extraWidth: activities.current?.extraWidth ?? 0)
+            size = NotchLayout.closedSize(
+                g, physical: physicalNotch,
+                extraWidth: activities.current?.extraWidth ?? 0)
             ear = 6
             if isActive && notch.state.phase == .peeking { size.width += 8; size.height += 3 }
         }
@@ -300,7 +290,6 @@ final class NotchWindowController {
         return NSRect(x: f.midX - w / 2, y: f.maxY - size.height - 2, width: w, height: size.height + 12)
     }
 
-    /// Зона, в которой курсор считается «у шторки» (для событий входа/выхода).
     private func hoverZone(shape: NSRect? = nil) -> NSRect {
         if expanded { return shape ?? shapeRect() }
         let g = geometry
@@ -317,22 +306,33 @@ final class NotchWindowController {
     private func installMonitors() {
         installMenuObservers()
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseDown, .leftMouseUp]
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
-            let type = event.type
-            MainActor.assumeIsolated { self?.handle(type, inOwnWindow: false) }
-        }) { monitors.append(global) }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
-            let type = event.type
-            let own = event.window === self?.panel
-            MainActor.assumeIsolated { self?.handle(type, inOwnWindow: own) }
-            return event
-        }) { monitors.append(local) }
-        // Жесты трекпадом над шторкой (только события своего окна).
-        if let scroll = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
-            guard let self, event.window === self.panel else { return event }
-            let consumed = MainActor.assumeIsolated { self.handleScroll(event) }
-            return consumed ? nil : event
-        }) { monitors.append(scroll) }
+        if let global = NSEvent.addGlobalMonitorForEvents(
+            matching: mask,
+            handler: { [weak self] event in
+                let type = event.type
+                MainActor.assumeIsolated { self?.handle(type, inOwnWindow: false) }
+            }) {
+            monitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(
+            matching: mask,
+            handler: { [weak self] event in
+                let type = event.type
+                let own = event.window === self?.panel
+                MainActor.assumeIsolated { self?.handle(type, inOwnWindow: own) }
+                return event
+            }) {
+            monitors.append(local)
+        }
+        if let scroll = NSEvent.addLocalMonitorForEvents(
+            matching: .scrollWheel,
+            handler: { [weak self] event in
+                guard let self, event.window === self.panel else { return event }
+                let consumed = MainActor.assumeIsolated { self.handleScroll(event) }
+                return consumed ? nil : event
+            }) {
+            monitors.append(scroll)
+        }
     }
 
     // MARK: Жесты
@@ -341,11 +341,7 @@ final class NotchWindowController {
     private var gestureDY: CGFloat = 0
     private var gestureDone = false
 
-    /// Двумя пальцами: влево/вправо по шапке — соседняя вкладка, вверх по шапке — закрыть,
-    /// вниз по закрытой шторке — открыть. Прокрутка внутри вкладок не трогается.
-    /// true — событие обработано и дальше не идёт.
     private func handleScroll(_ event: NSEvent) -> Bool {
-        // Только трекпад (у колёсика мыши нет фаз) и только жест, а не инерция.
         guard event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty else { return false }
         if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
             gestureDX = 0
@@ -354,7 +350,6 @@ final class NotchWindowController {
         }
         guard !gestureDone, isActive || arbiter.activeID == nil else { return false }
         let p = NSEvent.mouseLocation
-        // Направление пальцев (с учётом «естественной» прокрутки): +x — вправо, +y — вверх.
         let inverted = event.isDirectionInvertedFromDevice
         gestureDX += inverted ? event.scrollingDeltaX : -event.scrollingDeltaX
         gestureDY += inverted ? -event.scrollingDeltaY : event.scrollingDeltaY
@@ -373,7 +368,7 @@ final class NotchWindowController {
                 notch.send(.requestClose)
                 return true
             }
-            return true   // над шапкой прокручивать нечего — не отдаём дальше
+            return true
         }
         if phase == .closed || phase == .peeking {
             guard shapeRect().contains(p) else { return false }
@@ -400,7 +395,6 @@ final class NotchWindowController {
         switch type {
         case .leftMouseDown:
             startPressPolling()
-            // Клик вне открытой шторки закрывает её (даже при holdOpen) — но решаем на отпускании.
             if isActive, notch.state.phase == .open, !inOwnWindow, !shapeRect().contains(p) {
                 pendingOutsideClick = p
                 pendingMoved = false
@@ -418,12 +412,10 @@ final class NotchWindowController {
         case .leftMouseUp:
             dragActive = false
             if pendingOutsideClick != nil {
-                let dragged = pendingMoved
+                let dragged =
+                    pendingMoved
                     || NSPasteboard(name: .drag).changeCount != pendingPasteboardCount
                 pendingOutsideClick = nil
-                // Если снаружи начали перетаскивание (файл из Finder) — шторку не закрываем.
-                // Причина удержания «modal.*» — открыто системное окно (пароль администратора):
-                // клик по нему не должен закрывать шторку.
                 let modal = notch.state.holdOpen.contains { $0.hasPrefix("modal.") }
                 if !dragged, !modal, isActive, notch.state.phase == .open {
                     notch.send(.clickedOutside)
@@ -437,7 +429,6 @@ final class NotchWindowController {
 
     private func updatePointer(_ p: NSPoint) {
         guard panel.isVisible else { return }
-        // Ранний выход: шторка закрыта, курсор далеко от неё и не был внутри — ничего считать не нужно.
         if !inside, !dragActive, notch.state.phase == .closed {
             let f = screen.frame
             if p.y < f.maxY - 150 || p.x < f.minX - 300 || p.x > f.maxX + 300 { return }
@@ -450,7 +441,6 @@ final class NotchWindowController {
         inside = nowInside
         if nowInside {
             if !isActive {
-                // Перехватить шторку можно только пока она закрыта.
                 guard notch.state.phase == .closed else { return }
                 arbiter.activeID = displayID
             }
@@ -460,7 +450,6 @@ final class NotchWindowController {
         }
     }
 
-    /// Окно ловит мышь только над самой формой (или в зоне наведения во время перетаскивания файла).
     private func refreshMouseIgnoring(_ p: NSPoint, shape: NSRect? = nil, zone: NSRect? = nil) {
         let accept: Bool
         let shapeR = shape ?? shapeRect()
@@ -471,7 +460,6 @@ final class NotchWindowController {
         }
         if panel.ignoresMouseEvents == accept {
             panel.ignoresMouseEvents = !accept
-            NSLog("[KuDrag] acceptMouse=\(accept) expanded=\(expanded) dragActive=\(dragActive) phase=\(notch.state.phase)")
         }
     }
 
@@ -487,9 +475,7 @@ final class NotchWindowController {
                     self.updatePointer(p)
                     return
                 }
-                // Finder пишет в drag-буфер в момент начала перетаскивания.
                 if NSPasteboard(name: .drag).changeCount != self.pressDragCount {
-                    if !self.dragActive { NSLog("[KuDrag] drag detected via pasteboard") }
                     self.dragActive = true
                 }
                 self.refreshMouseIgnoring(p)
@@ -500,15 +486,9 @@ final class NotchWindowController {
 
     // MARK: Перетаскивание файлов
 
-    /// Открытая шторка с вкладкой, которая сама принимает файлы (ИИ): наша вью не перехватывает drag,
-    /// события доходят до WKWebView. Закрытая шторка и остальные вкладки — принимаем сами.
     private func updateDropRegistration() {
         let selfAccepting = notch.state.phase == .open && selectedTabAcceptsDropsItself
-        if dropView.registeredDraggedTypes.isEmpty == !selfAccepting {
-            NSLog("[KuDrag] registration -> \(!selfAccepting) tab=\(notch.state.selectedTab ?? "nil")")
-        }
         dropView.setAcceptsDrags(!selfAccepting)
-        // NSHostingView тоже может быть зарегистрирован как приёмник — тогда он перехватил бы файл.
         if selfAccepting, !hostingView.registeredDraggedTypes.isEmpty {
             hostingView.unregisterDraggedTypes()
         }
@@ -520,26 +500,28 @@ final class NotchWindowController {
 
     // MARK: Контекстные меню
 
-    /// Пока открыто меню (правый клик по файлу или записи буфера), шторка не закрывается:
-    /// меню выходит за её рамки, и курсор по пути к пункту покидает зону шторки.
-    /// Системные уведомления AppKit о меню.
     private func installMenuObservers() {
         guard menuObservers.isEmpty else { return }
         let center = NotificationCenter.default
-        menuObservers.append(center.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil,
-                                                queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.menuTracking(true) }
-        })
-        menuObservers.append(center.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil,
-                                                queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.menuTracking(false) }
-        })
+        menuObservers.append(
+            center.addObserver(
+                forName: NSMenu.didBeginTrackingNotification, object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.menuTracking(true) }
+            })
+        menuObservers.append(
+            center.addObserver(
+                forName: NSMenu.didEndTrackingNotification, object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.menuTracking(false) }
+            })
     }
 
     private func menuTracking(_ open: Bool) {
         guard !tornDown else { return }
         if open {
-            // Только для открытой шторки этого экрана (меню в строке меню не касается).
             guard isActive, notch.state.phase == .open, !menuHoldActive else { return }
             menuHoldActive = true
             notch.hold("modal.menu", true)
@@ -547,7 +529,6 @@ final class NotchWindowController {
             guard menuHoldActive else { return }
             menuHoldActive = false
             notch.hold("modal.menu", false)
-            // Меню закрыли, а курсор уже вне шторки — закрыться как обычно (если нет других причин держать).
             if isActive, notch.state.phase == .open, !hoverZone().contains(NSEvent.mouseLocation) {
                 inside = false
                 notch.send(.pointerExited)
@@ -555,21 +536,19 @@ final class NotchWindowController {
         }
     }
 
-    /// Пока открыта вкладка со staysOpenOnPointerExit (ИИ), уход курсора шторку не закрывает.
     private func syncStayOpen() {
-        let want = notch.state.phase == .open
+        let want =
+            notch.state.phase == .open
             && (registry.resolvedTab(notch.state.selectedTab)?.staysOpenOnPointerExit ?? false)
         guard want != stayOpenApplied else { return }
         stayOpenApplied = want
         notch.hold("tab.stayOpen", want)
-        // Удержание снято, а курсор уже вне шторки — закрыться как обычно.
         if !want, isActive, notch.state.phase == .open, !hoverZone().contains(NSEvent.mouseLocation) {
             inside = false
             notch.send(.pointerExited)
         }
     }
 
-    /// Курсор с файлом: точка в координатах окна с началом сверху-слева (подсветку считают вьюхи).
     func dragMoved(to topLeftPoint: CGPoint) {
         guard isActive else { return }
         if notch.dragLocation != topLeftPoint { notch.dragLocation = topLeftPoint }
@@ -592,9 +571,8 @@ final class NotchWindowController {
         }
         inside = true
         let phase = notch.state.phase
-        // Страховка: только что закрылась вкладка, сама принимающая файлы (ИИ) — вернём её, а не полку.
         if phase == .closed || phase == .peeking, selectedTabAcceptsDropsItself,
-           let closedAt = notch.lastClosedAt, Date().timeIntervalSince(closedAt) < 2 {
+            let closedAt = notch.lastClosedAt, Date().timeIntervalSince(closedAt) < 2 {
             notch.send(.requestOpen(tab: nil))
             updateDropRegistration()
             syncStayOpen()
@@ -602,11 +580,9 @@ final class NotchWindowController {
         }
         notch.dragInside = true
         notch.send(.dragEntered)
-        // Открытая шторка на другой вкладке: сразу показать вкладку-приёмник (полку).
-        // Открытая вкладка, сама принимающая файлы (ИИ), не переключается.
         if notch.state.phase == .open, !selectedTabAcceptsDropsItself,
-           let dropID = notch.dropTabID,
-           registry.resolvedTab(notch.state.selectedTab)?.id != dropID {
+            let dropID = notch.dropTabID,
+            registry.resolvedTab(notch.state.selectedTab)?.id != dropID {
             notch.send(.selectTab(dropID))
         }
         updateDropRegistration()
@@ -623,13 +599,11 @@ final class NotchWindowController {
         resetDragFlags()
         guard isActive else { return }
         dragActive = false
-        // Открыта вкладка, сама принимающая файлы: это не наш drop.
         if notch.state.phase == .open, selectedTabAcceptsDropsItself { return }
         notch.send(.dropped)
         if !urls.isEmpty { notch.dropHandler?.handleDrop(urls) }
     }
 
-    /// Файлы-обещания дописались уже после drop — просто кладём их в приёмник.
     func droppedPromised(_ urls: [URL]) {
         guard !tornDown, !urls.isEmpty else { return }
         notch.dropHandler?.handleDrop(urls)
@@ -637,7 +611,6 @@ final class NotchWindowController {
 
     // MARK: Наблюдение за состоянием
 
-    /// Перерисовывает окно при изменении геометрии/состояния; события при этом не шлёт.
     private func trackChanges() {
         guard !tornDown else { return }
         withObservationTracking {
@@ -664,7 +637,6 @@ final class NotchWindowController {
         }
     }
 
-    /// Новый запрос фокуса — делаем панель key (без активации приложения: панель non-activating).
     private func applyKeyboardFocusRequest() {
         guard notch.keyboardFocusRequest != handledFocusRequest else { return }
         handledFocusRequest = notch.keyboardFocusRequest
@@ -689,8 +661,10 @@ final class NotchWindowController {
     private func installVisibilityObserversIfNeeded() {
         guard observers.isEmpty else { return }
         let ws = NSWorkspace.shared.notificationCenter
-        let names: [Notification.Name] = [NSWorkspace.activeSpaceDidChangeNotification,
-                                          NSWorkspace.didActivateApplicationNotification]
+        let names: [Notification.Name] = [
+            NSWorkspace.activeSpaceDidChangeNotification,
+            NSWorkspace.didActivateApplicationNotification,
+        ]
         for name in names {
             let token = ws.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.updateVisibility() }
@@ -699,17 +673,19 @@ final class NotchWindowController {
         }
     }
 
-    /// Есть ли чужое окно на весь экран (полноэкранный режим) — приблизительная проверка.
     private func fullscreenAppCoversScreen() -> Bool {
         let bounds = CGDisplayBounds(displayID)
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else { return false }
+        guard let list = CGWindowListCopyWindowInfo(
+                [.optionOnScreenOnly, .excludeDesktopElements],
+                kCGNullWindowID) as? [[String: Any]]
+        else { return false }
         let ownPID = Int(ProcessInfo.processInfo.processIdentifier)
         for info in list {
             guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  (info[kCGWindowOwnerPID as String] as? Int) != ownPID,
-                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
-                  let rect = CGRect(dictionaryRepresentation: dict as CFDictionary) else { continue }
+                (info[kCGWindowOwnerPID as String] as? Int) != ownPID,
+                let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                let rect = CGRect(dictionaryRepresentation: dict as CFDictionary)
+            else { continue }
             if rect == bounds { return true }
         }
         return false

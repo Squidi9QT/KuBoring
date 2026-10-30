@@ -18,8 +18,10 @@ public struct NotchState: Equatable, Sendable {
     public var holdOpen: Set<String>
     public var openedByDrag: Bool
 
-    public init(phase: NotchPhase = .closed, selectedTab: String? = nil,
-                holdOpen: Set<String> = [], openedByDrag: Bool = false) {
+    public init(
+        phase: NotchPhase = .closed, selectedTab: String? = nil,
+        holdOpen: Set<String> = [], openedByDrag: Bool = false
+    ) {
         self.phase = phase
         self.selectedTab = selectedTab
         self.holdOpen = holdOpen
@@ -29,10 +31,11 @@ public struct NotchState: Equatable, Sendable {
 
 public enum NotchEffect: Equatable, Sendable { case scheduleOpen, scheduleClose, cancelTimers }
 
-/// Чистая функция переходов состояния шторки.
 public enum NotchReducer {
-    public static func reduce(_ state: inout NotchState, _ event: NotchEvent,
-                              openOnHover: Bool, dropTab: String?) -> [NotchEffect] {
+    public static func reduce(
+        _ state: inout NotchState, _ event: NotchEvent,
+        openOnHover: Bool, dropTab: String?
+    ) -> [NotchEffect] {
         switch event {
         case .pointerEntered:
             switch state.phase {
@@ -41,7 +44,7 @@ public enum NotchReducer {
                 state.phase = .peeking
                 return [.scheduleOpen]
             case .open:
-                return [.cancelTimers]   // вернулись, пока ждали закрытия
+                return [.cancelTimers]
             case .peeking, .dragging:
                 return []
             }
@@ -63,7 +66,6 @@ public enum NotchReducer {
             return []
 
         case .closeDelayElapsed:
-            // Причина удержания могла появиться, пока шёл таймер.
             guard state.phase == .open, state.holdOpen.isEmpty else { return [] }
             close(&state)
             return []
@@ -86,7 +88,7 @@ public enum NotchReducer {
                 if let dropTab { state.selectedTab = dropTab }
                 return [.cancelTimers]
             case .open:
-                return [.cancelTimers]   // вкладка не меняется
+                return [.cancelTimers]  // вкладка не меняется
             case .dragging:
                 return []
             }

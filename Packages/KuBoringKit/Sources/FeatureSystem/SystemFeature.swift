@@ -1,7 +1,6 @@
 import SwiftUI
 import KuBoringCore
 
-/// Фоновая фича: HUD громкости и яркости, зарядка, «не спать». Управление — только в настройках.
 @MainActor
 public final class SystemFeature: NotchFeature {
     public let id = "system"

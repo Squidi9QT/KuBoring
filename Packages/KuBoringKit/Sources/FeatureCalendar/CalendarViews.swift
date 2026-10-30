@@ -45,11 +45,16 @@ struct CalendarTabView: View {
     @ViewBuilder private func content(k: CGFloat) -> some View {
         switch model.access {
         case .notDetermined:
-            message("Нужен доступ к календарю, чтобы показывать события.", k: k,
-                    button: "Разрешить доступ") { model.requestAccess() }
+            message(
+                "Нужен доступ к календарю, чтобы показывать события.", k: k,
+                button: "Разрешить доступ"
+            ) { model.requestAccess() }
         case .denied:
-            message("Доступ к календарю запрещён. Разрешите его в Системных настройках → Конфиденциальность → Календари.", k: k,
-                    button: "Открыть настройки") {
+            message(
+                "Доступ к календарю запрещён. Разрешите его в Системных настройках → Конфиденциальность → Календари.",
+                k: k,
+                button: "Открыть настройки"
+            ) {
                 if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
                     NSWorkspace.shared.open(url)
                 }
@@ -139,7 +144,6 @@ struct CalendarRow: View {
         }
     }
 
-    /// Созвон начнётся в ближайшие 10 минут или уже идёт — кнопка заметнее.
     private var soon: Bool {
         let now = Date()
         return item.start.timeIntervalSince(now) < 10 * 60 && item.end > now
@@ -161,25 +165,39 @@ struct CalendarSettingsView: View {
     var body: some View {
         Group {
             SettingsSection("События") {
-                SettingsToggle("Показывать события на весь день",
-                               hint: "Дни рождения, праздники и другие события без времени.",
-                               isOn: Binding(
-                                   get: { model.settings[CalendarKeys.showAllDay] },
-                                   set: { model.settings[CalendarKeys.showAllDay] = $0; model.reload() }))
+                SettingsToggle(
+                    "Показывать события на весь день",
+                    hint: "Дни рождения, праздники и другие события без времени.",
+                    isOn: Binding(
+                        get: { model.settings[CalendarKeys.showAllDay] },
+                        set: {
+                            model.settings[CalendarKeys.showAllDay] = $0; model.reload()
+                        }))
             }
 
-            SettingsSection("Созвоны", footer: "Ссылки Zoom, Google Meet, Teams, Телемоста, Webex и др. ищутся в адресе, месте и заметках события.") {
-                SettingsToggle("Отсчёт до созвона в закрытой шторке",
-                               hint: "Камера и «через 4 мин» рядом с вырезом; по клику откроется календарь с кнопкой «Войти».",
-                               isOn: Binding(
-                                   get: { model.settings[CalendarKeys.meetingCountdown] },
-                                   set: { model.settings[CalendarKeys.meetingCountdown] = $0; model.restartMeetingWatch() }))
-                SettingsPicker("Показывать за",
-                               selection: Binding(
-                                   get: { model.settings[CalendarKeys.meetingLead] },
-                                   set: { model.settings[CalendarKeys.meetingLead] = $0; model.restartMeetingWatch() }),
-                               options: [(1, "1 мин"), (5, "5 мин"), (10, "10 мин"), (15, "15 мин")])
-                    .disabled(!model.settings[CalendarKeys.meetingCountdown])
+            SettingsSection(
+                "Созвоны",
+                footer:
+                    "Ссылки Zoom, Google Meet, Teams, Телемоста, Webex и др. ищутся в адресе, месте и заметках события."
+            ) {
+                SettingsToggle(
+                    "Отсчёт до созвона в закрытой шторке",
+                    hint: "Камера и «через 4 мин» рядом с вырезом; по клику откроется календарь с кнопкой «Войти».",
+                    isOn: Binding(
+                        get: { model.settings[CalendarKeys.meetingCountdown] },
+                        set: {
+                            model.settings[CalendarKeys.meetingCountdown] = $0; model.restartMeetingWatch()
+                        }))
+                SettingsPicker(
+                    "Показывать за",
+                    selection: Binding(
+                        get: { model.settings[CalendarKeys.meetingLead] },
+                        set: {
+                            model.settings[CalendarKeys.meetingLead] = $0; model.restartMeetingWatch()
+                        }),
+                    options: [(1, "1 мин"), (5, "5 мин"), (10, "10 мин"), (15, "15 мин")]
+                )
+                .disabled(!model.settings[CalendarKeys.meetingCountdown])
             }
 
             SettingsSection("Календари", footer: "Отключите календари, события которых не нужны во вкладке.") {
@@ -189,11 +207,12 @@ struct CalendarSettingsView: View {
                         Text("Календари не найдены.").foregroundStyle(.secondary)
                     } else {
                         ForEach(model.calendars) { info in
-                            SettingsToggle(info.title,
-                                           hint: info.source.isEmpty ? nil : info.source,
-                                           isOn: Binding(
-                                               get: { model.isVisible(info.id) },
-                                               set: { model.setVisible(info.id, $0) }))
+                            SettingsToggle(
+                                info.title,
+                                hint: info.source.isEmpty ? nil : info.source,
+                                isOn: Binding(
+                                    get: { model.isVisible(info.id) },
+                                    set: { model.setVisible(info.id, $0) }))
                         }
                     }
                 case .notDetermined:

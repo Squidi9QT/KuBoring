@@ -1,6 +1,5 @@
 import SwiftUI
 
-// Мелкие общие вьюхи (дублируются в каждом модуле, модули независимы).
 enum Palette {
     static let surface = Color.white.opacity(0.08)
     static let surfaceHover = Color.white.opacity(0.14)
@@ -36,7 +35,6 @@ struct EmptyHint: View {
     var subtitle: String = ""
 
     var body: some View {
-        // Если по высоте не влезает с подзаголовком — показываем только заголовок.
         ViewThatFits(in: .vertical) {
             hint(withSubtitle: true)
             hint(withSubtitle: false)

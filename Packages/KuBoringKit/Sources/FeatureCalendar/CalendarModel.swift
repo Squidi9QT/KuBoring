@@ -4,12 +4,9 @@ import EventKit
 import KuBoringCore
 
 enum CalendarKeys {
-    /// Идентификаторы календарей, которые пользователь скрыл (новые календари показываются сразу).
     static let hidden = SettingKey<[String]>("feature.calendar.hidden", default: [])
     static let showAllDay = SettingKey<Bool>("feature.calendar.showAllDay", default: true)
-    /// Отсчёт до созвона в закрытой шторке.
     static let meetingCountdown = SettingKey<Bool>("feature.calendar.meetingCountdown", default: true)
-    /// За сколько минут до начала показывать отсчёт.
     static let meetingLead = SettingKey<Int>("feature.calendar.meetingLead", default: 5)
 }
 
@@ -20,11 +17,9 @@ struct CalendarItem: Identifiable {
     let end: Date
     let isAllDay: Bool
     let color: Color
-    /// Ссылка на созвон (Zoom, Meet, Teams, Телемост…), найденная в событии.
     let meetingURL: URL?
 }
 
-/// Поиск ссылки на созвон в адресе, месте и заметках события.
 enum MeetingLink {
     private static let hosts = [
         "zoom.us", "zoom.com", "meet.google.com", "teams.microsoft.com", "teams.live.com",
@@ -108,14 +103,12 @@ final class CalendarModel {
 
     // MARK: Отсчёт до созвона
 
-    /// Ближайший созвон, который ещё не закончился (идёт или впереди).
     private func nextMeeting(now: Date) -> CalendarItem? {
         (today + tomorrow)
             .filter { $0.meetingURL != nil && !$0.isAllDay && $0.end > now }
             .min { $0.start < $1.start }
     }
 
-    /// Перезапуск слежения: спим до момента «за N минут до начала», без частого опроса.
     func restartMeetingWatch() {
         meetingTask?.cancel()
         meetingTask = nil
@@ -127,7 +120,6 @@ final class CalendarModel {
             while !Task.isCancelled {
                 guard let self else { return }
                 let now = Date()
-                // Новый день — перечитать события.
                 if Calendar.current.startOfDay(for: now) != self.loadedDay {
                     self.reload()
                     return
@@ -136,7 +128,6 @@ final class CalendarModel {
                 let wait: TimeInterval
                 if let meeting = self.nextMeeting(now: now) {
                     let showFrom = meeting.start.addingTimeInterval(-lead)
-                    // Показываем от «за N минут» до 5 минут после начала.
                     let showUntil = min(meeting.end, meeting.start.addingTimeInterval(5 * 60))
                     if now >= showFrom && now < showUntil {
                         self.postMeeting(meeting)
@@ -149,7 +140,6 @@ final class CalendarModel {
                     self.clearMeetingActivity()
                     wait = 15 * 60
                 }
-                // Не спим дольше 15 минут: события могли поменяться без уведомления.
                 try? await Task.sleep(for: .seconds(min(max(1, wait), 15 * 60)))
             }
         }
@@ -159,20 +149,21 @@ final class CalendarModel {
         guard let activities, postedMeetingID != meeting.id else { return }
         postedMeetingID = meeting.id
         let open: () -> Void = { [weak self] in self?.notch?.send(.requestOpen(tab: "calendar")) }
-        activities.post(LiveActivity(
-            id: Self.meetingActivityID,
-            priority: 85,
-            extraWidth: 58,
-            leading: AnyView(
-                Image(systemName: "video.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.white)
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: open)
-                    .help(meeting.title)
-            ),
-            trailing: AnyView(MeetingCountdown(start: meeting.start).onTapGesture(perform: open))
-        ))
+        activities.post(
+            LiveActivity(
+                id: Self.meetingActivityID,
+                priority: 85,
+                extraWidth: 58,
+                leading: AnyView(
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: open)
+                        .help(meeting.title)
+                ),
+                trailing: AnyView(MeetingCountdown(start: meeting.start).onTapGesture(perform: open))
+            ))
     }
 
     private func clearMeetingActivity() {
@@ -194,7 +185,6 @@ final class CalendarModel {
         }
     }
 
-    /// Запрос доступа — только по кнопке.
     func requestAccess() {
         Task {
             let granted = (try? await store.requestFullAccessToEvents()) ?? false
@@ -225,9 +215,13 @@ final class CalendarModel {
             return
         }
         let all = store.calendars(for: .event)
-        calendars = all
-            .map { CalendarInfo(id: $0.calendarIdentifier, title: $0.title,
-                                source: $0.source?.title ?? "", color: Color(cgColor: $0.cgColor)) }
+        calendars =
+            all
+            .map {
+                CalendarInfo(
+                    id: $0.calendarIdentifier, title: $0.title,
+                    source: $0.source?.title ?? "", color: Color(cgColor: $0.cgColor))
+            }
             .sorted { ($0.source, $0.title) < ($1.source, $1.title) }
 
         let hidden = Set(settings[CalendarKeys.hidden])
@@ -242,7 +236,8 @@ final class CalendarModel {
         let cal = Calendar.current
         let dayStart = cal.startOfDay(for: Date())
         guard let dayMid = cal.date(byAdding: .day, value: 1, to: dayStart),
-              let dayEnd = cal.date(byAdding: .day, value: 2, to: dayStart) else { return }
+            let dayEnd = cal.date(byAdding: .day, value: 2, to: dayStart)
+        else { return }
 
         let predicate = store.predicateForEvents(withStart: dayStart, end: dayEnd, calendars: visible)
         let showAllDay = settings[CalendarKeys.showAllDay]
@@ -255,13 +250,15 @@ final class CalendarModel {
                 .filter { $0.startDate < hi && $0.endDate > lo }
                 .map { event in
                     CalendarItem(
-                        id: "\(event.eventIdentifier ?? event.title ?? "e")-\(event.startDate.timeIntervalSince1970)-\(tag)",
+                        id:
+                            "\(event.eventIdentifier ?? event.title ?? "e")-\(event.startDate.timeIntervalSince1970)-\(tag)",
                         title: (event.title?.isEmpty == false ? event.title : nil) ?? "Без названия",
                         start: event.startDate,
                         end: event.endDate,
                         isAllDay: event.isAllDay,
                         color: Color(cgColor: event.calendar.cgColor),
-                        meetingURL: event.isAllDay ? nil
+                        meetingURL: event.isAllDay
+                            ? nil
                             : MeetingLink.find(url: event.url, location: event.location, notes: event.notes))
                 }
         }
@@ -272,7 +269,6 @@ final class CalendarModel {
     }
 }
 
-/// «через 4 мин» / «сейчас» — обновляется раз в 15 с сама.
 struct MeetingCountdown: View {
     let start: Date
 

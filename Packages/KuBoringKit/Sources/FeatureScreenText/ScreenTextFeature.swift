@@ -1,7 +1,6 @@
 import SwiftUI
 import KuBoringCore
 
-/// Фича «Текст с экрана»: выделить область, распознать (Vision), скопировать.
 @MainActor
 public final class ScreenTextFeature: NotchFeature {
     public let id = "screentext"
@@ -38,11 +37,14 @@ struct ScreenTextSettingsView: View {
     var body: some View {
         if let settings = model.settings {
             Group {
-                SettingsSection("Распознавание",
-                                footer: "Для выделения области macOS потребует разрешение «Запись экрана».") {
-                    SettingsToggle("Копировать сразу после распознавания",
-                                   hint: "Текст попадёт в буфер обмена без нажатия кнопки.",
-                                   isOn: settings.binding(ScreenTextKeys.copyImmediately))
+                SettingsSection(
+                    "Распознавание",
+                    footer: "Для выделения области macOS потребует разрешение «Запись экрана»."
+                ) {
+                    SettingsToggle(
+                        "Копировать сразу после распознавания",
+                        hint: "Текст попадёт в буфер обмена без нажатия кнопки.",
+                        isOn: settings.binding(ScreenTextKeys.copyImmediately))
                 }
             }
         } else {

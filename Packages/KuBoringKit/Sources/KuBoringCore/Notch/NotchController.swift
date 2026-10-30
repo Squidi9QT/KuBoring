@@ -1,7 +1,6 @@
 import SwiftUI
 import Observation
 
-/// Фича, принимающая файлы, регистрирует обработчик.
 @MainActor public protocol NotchDropHandler: AnyObject {
     func handleDrop(_ urls: [URL])
 }
@@ -9,21 +8,12 @@ import Observation
 @MainActor @Observable
 public final class NotchController {
     public private(set) var state: NotchState
-    /// Какая вкладка принимает файлы (ставит Shelf).
     public var dropTabID: String?
-    /// Файл сейчас тащат над шторкой (ставит окно; для открытой шторки, где фаза не .dragging).
     public var dragInside = false
-    /// Курсор с файлом именно над зоной-приёмником (ставит окно или веб-страница ИИ).
     public var dropHover = false
-    /// Точка курсора во время drag в координатах окна с началом сверху-слева (как SwiftUI .global).
     public var dragLocation: CGPoint?
-    /// Счётчик запросов клавиатурного фокуса: фича открыла шторку горячей клавишей — окно станет key,
-    /// чтобы стрелки и ввод шли в шторку (приложение при этом не активируется).
     public private(set) var keyboardFocusRequest = 0
-    /// Открыта панель аккумулятора поверх вкладки: шторка берёт базовый размер (а не размер вкладки, как у ИИ).
-    /// Сбрасывается, когда шторка закрывается или меняется вкладка.
     public var batteryPanelOpen = false
-    /// Когда шторка в последний раз закрылась из состояния .open (для страховки при перетаскивании).
     @ObservationIgnored public private(set) var lastClosedAt: Date?
     @ObservationIgnored public weak var dropHandler: NotchDropHandler?
 
@@ -41,20 +31,20 @@ public final class NotchController {
         self.state = initial
     }
 
-    /// Применить событие: редьюсер + исполнение эффектов.
     public func send(_ event: NotchEvent) {
         let geometry = settings[CoreKeys.geometry]
         var next = state
-        let effects = NotchReducer.reduce(&next, event,
-                                          openOnHover: geometry.openOnHover,
-                                          dropTab: dropTabID)
+        let effects = NotchReducer.reduce(
+            &next, event,
+            openOnHover: geometry.openOnHover,
+            dropTab: dropTabID)
         if state.phase == .open, next.phase != .open { lastClosedAt = Date() }
         if batteryPanelOpen, next.phase != .open || next.selectedTab != state.selectedTab {
             batteryPanelOpen = false
         }
         if next != state { state = next }
         if settings[CoreKeys.rememberLastTab], let tab = next.selectedTab,
-           settings[CoreKeys.lastTab] != tab {
+            settings[CoreKeys.lastTab] != tab {
             settings[CoreKeys.lastTab] = tab
         }
         for effect in effects { perform(effect, geometry: geometry) }
@@ -64,7 +54,6 @@ public final class NotchController {
         keyboardFocusRequest &+= 1
     }
 
-    /// Добавить/убрать причину не закрываться.
     public func hold(_ reason: String, _ on: Bool) {
         var next = state
         if on { next.holdOpen.insert(reason) } else { next.holdOpen.remove(reason) }

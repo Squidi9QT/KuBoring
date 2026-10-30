@@ -2,8 +2,10 @@ import XCTest
 @testable import KuBoringCore
 
 final class NotchReducerTests: XCTestCase {
-    private func run(_ state: NotchState, _ event: NotchEvent, hover: Bool = true,
-                     dropTab: String? = "shelf") -> (NotchState, [NotchEffect]) {
+    private func run(
+        _ state: NotchState, _ event: NotchEvent, hover: Bool = true,
+        dropTab: String? = "shelf"
+    ) -> (NotchState, [NotchEffect]) {
         var s = state
         let effects = NotchReducer.reduce(&s, event, openOnHover: hover, dropTab: dropTab)
         return (s, effects)
@@ -134,8 +136,9 @@ final class NotchReducerTests: XCTestCase {
     }
 
     func testDragWhileOpenNeverEntersDraggingEvenWithHold() {
-        let (s, _) = run(NotchState(phase: .open, selectedTab: "ai", holdOpen: ["tab.stayOpen"]),
-                         .dragEntered)
+        let (s, _) = run(
+            NotchState(phase: .open, selectedTab: "ai", holdOpen: ["tab.stayOpen"]),
+            .dragEntered)
         XCTAssertEqual(s.phase, .open)
         XCTAssertEqual(s.selectedTab, "ai")
         XCTAssertFalse(s.openedByDrag)

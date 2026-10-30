@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 import KuBoringCore
 
-/// Режимы фильтра источников (значения хранятся строкой в настройках).
 enum MusicSourceMode {
     static let all = "all"
     static let musicOnly = "music"
@@ -10,7 +9,6 @@ enum MusicSourceMode {
 }
 
 enum MusicSources {
-    /// Явно музыкальные приложения (режим «Только музыкальные приложения»).
     static let musicApps: Set<String> = [
         "com.apple.Music", "com.apple.iTunes", "com.spotify.client",
         "ru.yandex.desktop.music", "com.yandex.music",
@@ -19,14 +17,14 @@ enum MusicSources {
         "com.soundcloud.desktop", "com.amazon.music",
         "com.audirvana.Audirvana", "com.roon.Roon", "org.videolan.vlc.audio",
         "com.sonos.macController", "com.sonos.macController2",
-        "com.apple.Podcasts", "fm.last.Last.fm", "com.plexamp.plexamp"
+        "com.apple.Podcasts", "fm.last.Last.fm", "com.plexamp.plexamp",
     ]
 
     static let browsers: [String] = [
         "com.apple.Safari", "com.google.Chrome", "org.mozilla.firefox",
         "ru.yandex.desktop.yandex-browser", "company.thebrowser.Browser",
         "com.microsoft.edgemac", "com.operasoftware.Opera",
-        "com.brave.Browser", "com.vivaldi.Vivaldi", "org.chromium.Chromium"
+        "com.brave.Browser", "com.vivaldi.Vivaldi", "org.chromium.Chromium",
     ]
 
     static func appURL(_ id: String) -> URL? {
@@ -50,7 +48,6 @@ enum MusicSources {
     }
 }
 
-/// Список приложений-источников с тумблерами (режим «Выбрать вручную»).
 struct MusicSourcesList: View {
     let settings: SettingsStore
 

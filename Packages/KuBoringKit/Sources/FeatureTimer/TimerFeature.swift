@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 import KuBoringCore
 
-/// Фича «Таймер»: обратный отсчёт, живая активность в закрытой шторке.
 @MainActor
 public final class TimerFeature: NotchFeature {
     public let id = "timer"
@@ -43,8 +42,10 @@ struct TimerSettingsView: View {
     var body: some View {
         if let settings = model.settings {
             Group {
-                SettingsSection("Пресеты",
-                                footer: "Эти кнопки появятся во вкладке таймера. Максимум \(TimerModel.maxPresets).") {
+                SettingsSection(
+                    "Пресеты",
+                    footer: "Эти кнопки появятся во вкладке таймера. Максимум \(TimerModel.maxPresets)."
+                ) {
                     ForEach(model.presets, id: \.self) { minutes in
                         HStack {
                             Text("\(minutes) мин")
@@ -80,20 +81,29 @@ struct TimerSettingsView: View {
                         }
                     }
                 }
-                SettingsSection("Помидор", footer: "Кнопка «🍅 Помидор» во вкладке: работа и перерывы идут по очереди сами, после 4 рабочих отрезков — длинный перерыв.") {
-                    SettingsPicker("Работа", selection: settings.binding(TimerKeys.pomodoroWork),
-                                   options: [15, 20, 25, 30, 45, 50, 60].map { ($0, "\($0) мин") })
-                    SettingsPicker("Перерыв", selection: settings.binding(TimerKeys.pomodoroBreak),
-                                   options: [3, 5, 10, 15].map { ($0, "\($0) мин") })
-                    SettingsPicker("Длинный перерыв", selection: settings.binding(TimerKeys.pomodoroLongBreak),
-                                   options: [10, 15, 20, 30].map { ($0, "\($0) мин") })
+                SettingsSection(
+                    "Помидор",
+                    footer:
+                        "Кнопка «🍅 Помидор» во вкладке: работа и перерывы идут по очереди сами, после 4 рабочих отрезков — длинный перерыв."
+                ) {
+                    SettingsPicker(
+                        "Работа", selection: settings.binding(TimerKeys.pomodoroWork),
+                        options: [15, 20, 25, 30, 45, 50, 60].map { ($0, "\($0) мин") })
+                    SettingsPicker(
+                        "Перерыв", selection: settings.binding(TimerKeys.pomodoroBreak),
+                        options: [3, 5, 10, 15].map { ($0, "\($0) мин") })
+                    SettingsPicker(
+                        "Длинный перерыв", selection: settings.binding(TimerKeys.pomodoroLongBreak),
+                        options: [10, 15, 20, 30].map { ($0, "\($0) мин") })
                 }
                 SettingsSection("По окончании") {
-                    SettingsPicker("Звук", selection: settings.binding(TimerKeys.sound),
-                                   options: Self.sounds.map { ($0, $0) })
-                    SettingsToggle("Открывать шторку по окончании",
-                                   hint: "Шторка раскроется на вкладке таймера, когда время выйдет.",
-                                   isOn: settings.binding(TimerKeys.openOnFinish))
+                    SettingsPicker(
+                        "Звук", selection: settings.binding(TimerKeys.sound),
+                        options: Self.sounds.map { ($0, $0) })
+                    SettingsToggle(
+                        "Открывать шторку по окончании",
+                        hint: "Шторка раскроется на вкладке таймера, когда время выйдет.",
+                        isOn: settings.binding(TimerKeys.openOnFinish))
                 }
             }
         } else {

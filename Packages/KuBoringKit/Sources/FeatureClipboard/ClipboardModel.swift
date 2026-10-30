@@ -4,10 +4,8 @@ import KuBoringCore
 
 struct ClipItem: Identifiable, Equatable, Codable {
     var id = UUID()
-    /// Для картинки — пустая строка.
     var text: String
     var pinned = false
-    /// PNG/TIFF скопированной картинки. Картинки живут только в памяти (на диск не пишутся).
     var image: Data?
 
     var isImage: Bool { image != nil }
@@ -39,24 +37,18 @@ enum ClipboardKeys {
     static let limit = SettingKey<Int>("feature.clipboard.limit", default: 50)
     static let persist = SettingKey<Bool>("feature.clipboard.persist", default: false)
     static let skipSecrets = SettingKey<Bool>("feature.clipboard.skipSecrets", default: true)
-    /// ⌘⇧V открывает историю (по умолчанию выключено — как раньше).
     static let hotkey = SettingKey<Bool>("feature.clipboard.hotkey", default: false)
-    /// После выбора сразу вставлять (⌘V в прежнее приложение; нужен «Универсальный доступ»).
     static let autoPaste = SettingKey<Bool>("feature.clipboard.autoPaste", default: true)
     static let images = SettingKey<Bool>("feature.clipboard.images", default: true)
 }
 
-/// История буфера обмена: текст и картинки, закреплённые записи, вызов горячей клавишей.
-/// Опрос changeCount в Task-цикле.
 @MainActor @Observable
 final class ClipboardModel {
     private(set) var items: [ClipItem] = []
     private(set) var justCopiedID: UUID?
 
-    /// Открыто горячей клавишей: стрелки выбирают, Enter вставляет, Esc закрывает.
     private(set) var keyboardMode = false
     var selectedID: UUID?
-    /// Поиск — в модели, чтобы клавиатурный режим видел тот же отфильтрованный список.
     var query = ""
 
     private(set) var settings: SettingsStore?
@@ -71,31 +63,25 @@ final class ClipboardModel {
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var previousApp: NSRunningApplication?
     @ObservationIgnored private var thumbnailCache: [UUID: NSImage] = [:]
-    // Кэш настроек: читаем раз в несколько секунд, а не на каждом тике
     @ObservationIgnored private var cachedLimit = 50
     @ObservationIgnored private var cachedSkipSecrets = true
     @ObservationIgnored private var cachedImages = true
     @ObservationIgnored private var settingsRefreshedAt = Date.distantPast
 
     private static let storageKey = "data.clipboard.history"
-    /// Картинок в памяти не больше этого (они тяжёлые).
     private static let maxImages = 15
-    /// Картинки крупнее не сохраняем.
     private static let maxImageBytes = 20 * 1024 * 1024
 
-    /// Метки менеджеров паролей (nspasteboard.org).
     private static let secretTypes: Set<NSPasteboard.PasteboardType> = [
         NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"),
         NSPasteboard.PasteboardType("org.nspasteboard.TransientType"),
     ]
 
-    /// Из этих приложений ничего не сохраняем.
     private static let ignoredApps: Set<String> = [
         "com.apple.keychainaccess", "com.apple.Passwords", "com.1password.1password",
         "com.agilebits.onepassword7", "com.bitwarden.desktop",
     ]
 
-    /// Закреплённые сверху, затем остальные по свежести; с учётом поиска.
     var visibleItems: [ClipItem] {
         let q = query.trimmingCharacters(in: .whitespaces)
         let list = q.isEmpty ? items : items.filter { $0.text.localizedCaseInsensitiveContains(q) }
@@ -111,7 +97,6 @@ final class ClipboardModel {
         if lastPersist { load() }
         refreshSettings(force: true)
         applyHotKey()
-        // Мгновенная проверка при смене активного приложения
         activateObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -142,7 +127,6 @@ final class ClipboardModel {
         endKeyboardMode()
     }
 
-    /// Включить/выключить ⌘⇧V по настройке.
     func applyHotKey() {
         let want = settings?[ClipboardKeys.hotkey] ?? false
         if want, hotKey == nil {
@@ -153,7 +137,6 @@ final class ClipboardModel {
         }
     }
 
-    /// 0.5 с, пока пользователь активен; 2.5 с, если нет ввода больше минуты.
     private func pollInterval() -> Duration {
         guard let anyEvent = CGEventType(rawValue: UInt32.max) else { return .milliseconds(500) }
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyEvent)
@@ -178,7 +161,6 @@ final class ClipboardModel {
         trim()
     }
 
-    /// Лимит касается только незакреплённых записей.
     private func trim() {
         var unpinned = 0, images = 0
         var removed = false
@@ -216,16 +198,15 @@ final class ClipboardModel {
         }
 
         if let text = pb.string(forType: .string),
-           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             insert(ClipItem(text: text)) { $0.text == text && !$0.isImage }
         } else if cachedImages, !types.contains(.fileURL),
-                  let data = pb.data(forType: .png) ?? pb.data(forType: .tiff),
-                  data.count <= Self.maxImageBytes {
+            let data = pb.data(forType: .png) ?? pb.data(forType: .tiff),
+            data.count <= Self.maxImageBytes {
             insert(ClipItem(text: "", image: data)) { $0.image == data }
         }
     }
 
-    /// Новая запись наверх; такая же старая — убирается (закрепление сохраняется).
     private func insert(_ item: ClipItem, sameAs: (ClipItem) -> Bool) {
         var new = item
         if let old = items.first(where: sameAs) {
@@ -239,7 +220,6 @@ final class ClipboardModel {
         save()
     }
 
-    /// Скопировать запись снова: без нового добавления, запись поднимается наверх.
     func copy(_ item: ClipItem) {
         let pb = NSPasteboard.general
         pb.clearContents()
@@ -280,7 +260,6 @@ final class ClipboardModel {
         save()
     }
 
-    /// Очищает историю; закреплённые остаются.
     func clear() {
         items.removeAll { !$0.pinned }
         let ids = Set(items.map(\.id))
@@ -301,7 +280,6 @@ final class ClipboardModel {
     private func hotKeyPressed() {
         guard let notch else { return }
         if keyboardMode {
-            // Повторное нажатие — закрыть.
             cancelKeyboard()
             return
         }
@@ -325,23 +303,22 @@ final class ClipboardModel {
         }
     }
 
-    /// Стрелки, Enter, Esc; остальное уходит в поле поиска.
     private func handleKey(_ code: Int) -> Bool {
         guard keyboardMode else { return false }
         let list = visibleItems
         switch code {
-        case 125, 126: // вниз, вверх
+        case 125, 126:  // вниз, вверх
             guard !list.isEmpty else { return true }
             let current = list.firstIndex { $0.id == selectedID } ?? -1
             let next = code == 125 ? min(list.count - 1, current + 1) : max(0, current - 1)
             selectedID = list[next].id
             return true
-        case 36, 76: // Return, Enter
+        case 36, 76:  // Return, Enter
             if let item = list.first(where: { $0.id == selectedID }) ?? list.first {
                 choose(item)
             }
             return true
-        case 53: // Esc
+        case 53:  // Esc
             cancelKeyboard()
             return true
         default:
@@ -349,7 +326,6 @@ final class ClipboardModel {
         }
     }
 
-    /// Выбрать запись: в буфер, закрыть шторку, вернуть фокус прежнему приложению и вставить.
     func choose(_ item: ClipItem) {
         copy(item)
         let app = previousApp
@@ -359,7 +335,6 @@ final class ClipboardModel {
         guard paste else { return }
         pasteTask?.cancel()
         pasteTask = Task {
-            // Дать прежнему окну снова стать активным.
             try? await Task.sleep(for: .milliseconds(180))
             guard !Task.isCancelled else { return }
             Self.postPaste()
@@ -386,12 +361,10 @@ final class ClipboardModel {
         query = ""
     }
 
-    /// Шторку закрыли (уход курсора, клик снаружи) во время клавиатурного режима.
     func notchClosed() {
         if keyboardMode { endKeyboardMode() }
     }
 
-    /// ⌘V в активное приложение.
     private static func postPaste() {
         let source = CGEventSource(stateID: .combinedSessionState)
         let v: CGKeyCode = 9
@@ -403,7 +376,6 @@ final class ClipboardModel {
         up?.post(tap: .cghidEventTap)
     }
 
-    /// Запросить «Универсальный доступ» (системное окно), если ещё не выдан.
     static func requestAccessibility() {
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
@@ -411,7 +383,6 @@ final class ClipboardModel {
 
     // MARK: - Хранение между запусками
 
-    /// На диск — только текст (картинки тяжёлые и могут быть приватными).
     private func save() {
         let defaults = UserDefaults.standard
         guard lastPersist else {
@@ -425,7 +396,8 @@ final class ClipboardModel {
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
-              let saved = try? JSONDecoder().decode([ClipItem].self, from: data) else { return }
+            let saved = try? JSONDecoder().decode([ClipItem].self, from: data)
+        else { return }
         items = saved
     }
 }

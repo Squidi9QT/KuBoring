@@ -1,6 +1,5 @@
 import Foundation
 
-/// Геометрия шторки (редактируется в настройках, есть живое превью).
 public struct NotchGeometry: Codable, Sendable, Equatable {
     public var openWidth: Double = 640
     public var openHeight: Double = 190
@@ -30,8 +29,6 @@ public enum CoreKeys {
     public static let showOnAllScreens = SettingKey<Bool>("core.allScreens", default: false)
     public static let hideInFullscreen = SettingKey<Bool>("core.hideInFullscreen", default: false)
     public static let showBattery = SettingKey<Bool>("core.showBattery", default: true)
-    /// Окно приветствия уже показано.
     public static let onboardingShown = SettingKey<Bool>("core.onboardingShown", default: false)
-    /// «Не спать с закрытой крышкой» включил KuBoring (значит, при выходе его надо выключить).
     public static let lidAwakeByApp = SettingKey<Bool>("core.lidAwakeByApp", default: false)
 }

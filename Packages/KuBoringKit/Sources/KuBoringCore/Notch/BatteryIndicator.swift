@@ -3,7 +3,6 @@ import AppKit
 import IOKit.ps
 import Observation
 
-/// Когда включать режим энергосбережения (как в Системных настройках → Аккумулятор).
 enum LowPowerSchedule: String, CaseIterable, Identifiable {
     case never, always, onBattery, onAdapter
 
@@ -18,7 +17,6 @@ enum LowPowerSchedule: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Значения lowpowermode для питания от батареи (-b) и от сети (-c).
     var values: (battery: Int, adapter: Int) {
         switch self {
         case .never: return (0, 0)
@@ -34,49 +32,38 @@ enum LowPowerSchedule: String, CaseIterable, Identifiable {
     }
 }
 
-/// C-колбэк источников питания (без захвата): context = unretained BatteryMonitor.
 private func batteryPowerCallback(_ context: UnsafeMutableRawPointer?) {
     guard let context else { return }
     let monitor = Unmanaged<BatteryMonitor>.fromOpaque(context).takeUnretainedValue()
     MainActor.assumeIsolated { monitor.refresh() }
 }
 
-/// Состояние встроенного аккумулятора. Заряд обновляется по системному уведомлению IOKit (без опроса).
-/// Один на приложение: создаёт NotchWindowManager и передаёт в окна шторки.
 @MainActor @Observable
 final class BatteryMonitor {
-    /// 0...100; nil — аккумулятора нет (Mac mini, iMac и т.п.).
     private(set) var level: Int?
     private(set) var charging = false
     private(set) var pluggedIn = false
     private(set) var fullyCharged = false
-    /// Минуты до полной зарядки / до разрядки; nil — macOS ещё считает или неприменимо.
     private(set) var minutesToFull: Int?
     private(set) var minutesToEmpty: Int?
     private(set) var adapterWatts: Int?
-    /// Режим энергосбережения включён прямо сейчас.
     private(set) var lowPowerActive = ProcessInfo.processInfo.isLowPowerModeEnabled
-    /// Расписание режима; nil — ещё не прочитано.
     private(set) var schedule: LowPowerSchedule?
     private(set) var changingSchedule = false
     private(set) var scheduleError: String?
 
     @ObservationIgnored private var source: CFRunLoopSource?
     @ObservationIgnored private var lowPowerObserver: NSObjectProtocol?
-    /// Вызывается после каждого обновления заряда: (процент, от сети).
     @ObservationIgnored var onUpdate: ((Int, Bool) -> Void)?
-    /// Идёт смена режима (может появиться окно пароля) — шторка не должна закрываться.
     @ObservationIgnored var onBusyChange: ((Bool) -> Void)?
 
     init() {
         refresh()
-        // Монитор живёт всё время работы приложения (его держит NotchWindowManager).
         let context = Unmanaged.passUnretained(self).toOpaque()
         if let src = IOPSNotificationCreateRunLoopSource(batteryPowerCallback, context)?.takeRetainedValue() {
             CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
             source = src
         }
-        // Системное уведомление: режим энергосбережения включили/выключили.
         lowPowerObserver = NotificationCenter.default.addObserver(
             forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
         ) { [weak self] _ in
@@ -87,7 +74,6 @@ final class BatteryMonitor {
         }
     }
 
-    /// Снять подписки (при остановке окон шторки).
     func invalidate() {
         if let source {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
@@ -100,15 +86,17 @@ final class BatteryMonitor {
 
     func refresh() {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else {
+            let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef]
+        else {
             level = nil
             return
         }
         for ps in list {
             guard let d = IOPSGetPowerSourceDescription(info, ps)?.takeUnretainedValue() as? [String: Any],
-                  (d[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType,
-                  let current = d[kIOPSCurrentCapacityKey] as? Int,
-                  let maximum = d[kIOPSMaxCapacityKey] as? Int, maximum > 0 else { continue }
+                (d[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType,
+                let current = d[kIOPSCurrentCapacityKey] as? Int,
+                let maximum = d[kIOPSMaxCapacityKey] as? Int, maximum > 0
+            else { continue }
             let newLevel = min(100, max(0, Int((Double(current) / Double(maximum) * 100).rounded())))
             let newCharging = (d[kIOPSIsChargingKey] as? Bool) ?? false
             let newPlugged = (d[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
@@ -119,15 +107,16 @@ final class BatteryMonitor {
             fullyCharged = (d[kIOPSIsChargedKey] as? Bool) ?? (newLevel >= 100)
             minutesToFull = Self.minutes(d[kIOPSTimeToFullChargeKey])
             minutesToEmpty = Self.minutes(d[kIOPSTimeToEmptyKey])
-            adapterWatts = newPlugged
-                ? (IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any])?[kIOPSPowerAdapterWattsKey] as? Int
+            adapterWatts =
+                newPlugged
+                ? (IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any])?[
+                    kIOPSPowerAdapterWattsKey] as? Int
                 : nil
             return
         }
         level = nil
     }
 
-    /// -1 и 0 у IOKit значат «ещё считается».
     private static func minutes(_ value: Any?) -> Int? {
         guard let m = value as? Int, m > 0 else { return nil }
         return m
@@ -135,7 +124,6 @@ final class BatteryMonitor {
 
     // MARK: Режим энергосбережения
 
-    /// Читает расписание из `pmset -g custom` (без прав администратора).
     func refreshSchedule() {
         Task {
             let output = await PrivilegedPmset.exec("/usr/bin/pmset", ["-g", "custom"]).output
@@ -143,10 +131,8 @@ final class BatteryMonitor {
         }
     }
 
-    /// Разовый доступ уже выдан — смена режима не спрашивает пароль.
     var passwordless: Bool { PrivilegedPmset.ruleInstalled }
 
-    /// Меняет расписание через pmset: без пароля, если разовый доступ выдан; иначе macOS один раз спросит пароль.
     func setSchedule(_ new: LowPowerSchedule) {
         guard !changingSchedule, new != schedule else { return }
         changingSchedule = true
@@ -175,8 +161,6 @@ final class BatteryMonitor {
             guard parts.count >= 2, parts[0] == "lowpowermode", let value = Int(parts[1]) else { continue }
             if section.hasPrefix("Battery") { battery = value } else if section.hasPrefix("AC") { adapter = value }
         }
-        // На Mac без батареи есть только секция AC. Значение 2 на некоторых MacBook Pro — «высокая мощность»,
-        // это не энергосбережение.
         let b = battery ?? adapter ?? 0, a = adapter ?? battery ?? 0
         return LowPowerSchedule(battery: b == 1 ? 1 : 0, adapter: a == 1 ? 1 : 0)
     }
@@ -197,7 +181,6 @@ enum BatteryText {
         }
     }
 
-    /// Цвет значка батареи: белый, красный — только при низком заряде без зарядки. Зарядку показывает молния.
     static func color(_ b: BatteryMonitor, level: Int) -> Color {
         if level <= 20 && !b.pluggedIn { return .red }
         return Color.white.opacity(0.85)
@@ -216,7 +199,6 @@ enum BatteryText {
     }
 }
 
-/// Мини-индикатор аккумулятора для шапки открытой шторки: процент + значок. Клик открывает панель.
 struct BatteryIndicator: View {
     let battery: BatteryMonitor
     var active = false
@@ -249,7 +231,6 @@ struct BatteryIndicator: View {
     }
 }
 
-/// Панель аккумулятора поверх вкладки: заряд, состояние, время, адаптер и режим энергосбережения.
 struct BatteryPanel: View {
     let battery: BatteryMonitor
     let controls: QuickControls
@@ -259,74 +240,75 @@ struct BatteryPanel: View {
     var body: some View {
         let level = battery.level ?? 0
         VStack(alignment: .leading, spacing: 10) {
-        HStack(alignment: .center, spacing: 18) {
-            // Слева — заряд и состояние.
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: BatteryText.symbol(level: level, charging: battery.charging))
-                        .font(.system(size: 26))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(BatteryText.color(battery, level: level))
-                    Text("\(level)%")
-                        .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
-                }
-                Text(BatteryText.status(battery))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(battery.charging ? Color.green : Color.white.opacity(0.9))
-                Group {
-                    if let detail {
-                        Text(detail)
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: BatteryText.symbol(level: level, charging: battery.charging))
+                            .font(.system(size: 26))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(BatteryText.color(battery, level: level))
+                        Text("\(level)%")
+                            .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
                     }
-                    if let watts = battery.adapterWatts {
-                        Text("Адаптер: \(watts) Вт")
+                    Text(BatteryText.status(battery))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(battery.charging ? Color.green : Color.white.opacity(0.9))
+                    Group {
+                        if let detail {
+                            Text(detail)
+                        }
+                        if let watts = battery.adapterWatts {
+                            Text("Адаптер: \(watts) Вт")
+                        }
                     }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
                 }
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.55))
-                .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Справа — режим энергосбережения.
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: battery.lowPowerActive ? "leaf.fill" : "leaf")
-                        .foregroundStyle(battery.lowPowerActive ? Color.yellow : Color.white.opacity(0.6))
-                    Text("Энергосбережение")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(battery.lowPowerActive ? "вкл" : "выкл")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.5))
-                    if battery.changingSchedule {
-                        ProgressView().controlSize(.mini)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: battery.lowPowerActive ? "leaf.fill" : "leaf")
+                            .foregroundStyle(battery.lowPowerActive ? Color.yellow : Color.white.opacity(0.6))
+                        Text("Энергосбережение")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(battery.lowPowerActive ? "вкл" : "выкл")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.5))
+                        if battery.changingSchedule {
+                            ProgressView().controlSize(.mini)
+                        }
                     }
-                }
-                Picker("", selection: Binding(
-                    get: { battery.schedule ?? .never },
-                    set: { battery.setSchedule($0) }
-                )) {
-                    ForEach(LowPowerSchedule.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .disabled(battery.schedule == nil || battery.changingSchedule)
-                .frame(width: 260)
-                HStack(spacing: 10) {
-                    if let error = battery.scheduleError {
-                        Text(error).foregroundStyle(.red)
-                    } else {
-                        Text(battery.passwordless ? "Без пароля" : "Пароль спросят один раз")
-                            .foregroundStyle(.white.opacity(0.4))
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { battery.schedule ?? .never },
+                            set: { battery.setSchedule($0) }
+                        )
+                    ) {
+                        ForEach(LowPowerSchedule.allCases) { Text($0.title).tag($0) }
                     }
-                    Spacer()
-                    Button("Настройки…") { openBatterySettings() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white.opacity(0.7))
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .disabled(battery.schedule == nil || battery.changingSchedule)
+                    .frame(width: 260)
+                    HStack(spacing: 10) {
+                        if let error = battery.scheduleError {
+                            Text(error).foregroundStyle(.red)
+                        } else {
+                            Text(battery.passwordless ? "Без пароля" : "Пароль спросят один раз")
+                                .foregroundStyle(.white.opacity(0.4))
+                        }
+                        Spacer()
+                        Button("Настройки…") { openBatterySettings() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .font(.system(size: 11))
+                    .frame(width: 260)
                 }
-                .font(.system(size: 11))
-                .frame(width: 260)
             }
-        }
             QuickControlsRow(controls: controls)
         }
         .padding(.horizontal, 16)

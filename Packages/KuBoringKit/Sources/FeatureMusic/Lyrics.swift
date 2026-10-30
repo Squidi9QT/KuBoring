@@ -1,6 +1,5 @@
 import Foundation
 
-/// Строка синхронного текста: время начала (с) и текст.
 struct LyricLine: Equatable {
     let time: Double
     let text: String
@@ -10,13 +9,11 @@ enum LyricsState: Equatable {
     case idle
     case loading
     case synced([LyricLine])
-    /// Текст без таймингов — показываем первые строки без подсветки.
     case plain([String])
     case instrumental
     case notFound
 }
 
-/// Тексты песен с lrclib.net (бесплатно, без ключа). Кэш в памяти на время работы приложения.
 @MainActor
 final class LyricsService {
     private var cache: [String: LyricsState] = [:]
@@ -43,7 +40,6 @@ final class LyricsService {
             result = await search(title: title, artist: artist)
         }
         let state = result ?? .notFound
-        // Отменённый запрос (трек сменился) не кэшируем — для него результата нет.
         if !Task.isCancelled { cache[key] = state }
         return state
     }
@@ -52,8 +48,10 @@ final class LyricsService {
 
     private func get(title: String, artist: String, album: String, duration: Double) async -> LyricsState? {
         var c = URLComponents(string: "https://lrclib.net/api/get")!
-        var items = [URLQueryItem(name: "track_name", value: title),
-                     URLQueryItem(name: "artist_name", value: artist)]
+        var items = [
+            URLQueryItem(name: "track_name", value: title),
+            URLQueryItem(name: "artist_name", value: artist),
+        ]
         if !album.isEmpty { items.append(URLQueryItem(name: "album_name", value: album)) }
         if duration > 0 { items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
         c.queryItems = items
@@ -63,17 +61,19 @@ final class LyricsService {
 
     private func search(title: String, artist: String) async -> LyricsState? {
         var c = URLComponents(string: "https://lrclib.net/api/search")!
-        c.queryItems = [URLQueryItem(name: "track_name", value: title),
-                        URLQueryItem(name: "artist_name", value: artist)]
+        c.queryItems = [
+            URLQueryItem(name: "track_name", value: title),
+            URLQueryItem(name: "artist_name", value: artist),
+        ]
         guard let url = c.url, let list = await json(url) as? [[String: Any]], !list.isEmpty else { return nil }
-        // Сначала — с таймингами.
         let best = list.first { ($0["syncedLyrics"] as? String)?.isEmpty == false } ?? list[0]
         return Self.state(from: best)
     }
 
     private func json(_ url: URL) async -> Any? {
         guard let (data, response) = try? await session.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            (response as? HTTPURLResponse)?.statusCode == 200
+        else { return nil }
         return try? JSONSerialization.jsonObject(with: data)
     }
 
@@ -91,7 +91,6 @@ final class LyricsService {
         return nil
     }
 
-    /// Разбор LRC: «[мм:сс.хх] текст»; у одной строки может быть несколько меток.
     static func parseLRC(_ text: String) -> [LyricLine] {
         var result: [LyricLine] = []
         for raw in text.split(separator: "\n") {
@@ -114,7 +113,6 @@ final class LyricsService {
         return m * 60 + s
     }
 
-    /// Индекс текущей строки для позиции (последняя, чьё время уже наступило).
     static func currentIndex(_ lines: [LyricLine], at position: Double) -> Int? {
         var lo = 0, hi = lines.count - 1, found: Int?
         while lo <= hi {

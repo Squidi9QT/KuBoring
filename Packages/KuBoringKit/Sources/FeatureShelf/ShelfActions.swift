@@ -2,8 +2,6 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Быстрые действия с файлами полки. Результат кладётся рядом с исходным файлом
-/// (или в «Загрузки», если туда писать нельзя); исходники не меняются (кроме переименования).
 enum ShelfActions {
     enum Failure: LocalizedError {
         case notImage, cannotRead, cannotWrite, zipFailed, nameTaken, badName
@@ -24,16 +22,15 @@ enum ShelfActions {
         UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) ?? false
     }
 
-    /// Сжать: не больше 2560 px по длинной стороне, JPEG 70%.
     static func compress(_ url: URL) throws -> URL {
         guard isImage(url) else { throw Failure.notImage }
-        let out = uniqueURL(in: outputFolder(for: url), base: url.deletingPathExtension().lastPathComponent + " (сжато)",
-                            ext: "jpg")
+        let out = uniqueURL(
+            in: outputFolder(for: url), base: url.deletingPathExtension().lastPathComponent + " (сжато)",
+            ext: "jpg")
         try writeJPEG(from: url, to: out, maxPixel: 2560, quality: 0.7)
         return out
     }
 
-    /// В JPG без уменьшения (HEIC, PNG, TIFF…), качество 90%.
     static func convertToJPEG(_ url: URL) throws -> URL {
         guard isImage(url) else { throw Failure.notImage }
         let out = uniqueURL(in: outputFolder(for: url), base: url.deletingPathExtension().lastPathComponent, ext: "jpg")
@@ -50,17 +47,18 @@ enum ShelfActions {
         if let maxPixel {
             options[kCGImageSourceThumbnailMaxPixelSize] = maxPixel
         } else if let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
-                  let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int {
+            let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int {
             options[kCGImageSourceThumbnailMaxPixelSize] = max(w, h)
         }
-        guard let image = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { throw Failure.cannotRead }
+        guard let image = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else {
+            throw Failure.cannotRead
+        }
         guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
         else { throw Failure.cannotWrite }
         CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { throw Failure.cannotWrite }
     }
 
-    /// Упаковать один или несколько файлов/папок в zip.
     static func zip(_ urls: [URL]) throws -> URL {
         guard let first = urls.first else { throw Failure.zipFailed }
         let base = urls.count == 1 ? first.deletingPathExtension().lastPathComponent : "Архив"
@@ -68,8 +66,8 @@ enum ShelfActions {
         if urls.count == 1 {
             try run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", first.path, out.path])
         } else {
-            // Несколько файлов из разных папок: собираем ссылки во временной папке (zip идёт по ссылкам).
-            let stage = FileManager.default.temporaryDirectory.appendingPathComponent("kuboring-zip-\(UUID().uuidString)")
+            let stage = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "kuboring-zip-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: stage, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: stage) }
             var used: Set<String> = []
@@ -77,12 +75,14 @@ enum ShelfActions {
                 var name = url.lastPathComponent
                 var n = 2
                 while used.contains(name) {
-                    name = "\(url.deletingPathExtension().lastPathComponent) \(n)"
+                    name =
+                        "\(url.deletingPathExtension().lastPathComponent) \(n)"
                         + (url.pathExtension.isEmpty ? "" : ".\(url.pathExtension)")
                     n += 1
                 }
                 used.insert(name)
-                try FileManager.default.createSymbolicLink(at: stage.appendingPathComponent(name), withDestinationURL: url)
+                try FileManager.default.createSymbolicLink(
+                    at: stage.appendingPathComponent(name), withDestinationURL: url)
             }
             try run("/usr/bin/zip", ["-r", "-q", out.path, "."], cwd: stage)
         }
@@ -90,7 +90,6 @@ enum ShelfActions {
         return out
     }
 
-    /// Переименовать на месте. Без расширения в новом имени — сохраняем старое.
     static func rename(_ url: URL, to rawName: String) throws -> URL {
         var name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !name.contains("/"), !name.hasPrefix(".") || name.count > 1, name != ".." else {
@@ -101,7 +100,6 @@ enum ShelfActions {
         }
         let target = url.deletingLastPathComponent().appendingPathComponent(name)
         if target.path == url.path { return url }
-        // Смена только регистра — допустима на нечувствительной к регистру ФС.
         if FileManager.default.fileExists(atPath: target.path), target.path.lowercased() != url.path.lowercased() {
             throw Failure.nameTaken
         }

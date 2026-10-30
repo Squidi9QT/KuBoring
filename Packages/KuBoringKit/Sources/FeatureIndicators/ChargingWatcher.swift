@@ -2,14 +2,12 @@ import SwiftUI
 import IOKit.ps
 import KuBoringCore
 
-/// C-колбэк источников питания (без захвата): context = unretained ChargingWatcher.
 private func chargingPowerCallback(_ context: UnsafeMutableRawPointer?) {
     guard let context else { return }
     let watcher = Unmanaged<ChargingWatcher>.fromOpaque(context).takeUnretainedValue()
     MainActor.assumeIsolated { watcher.powerChanged() }
 }
 
-/// Подключили зарядку — короткая анимация молнии у выреза.
 @MainActor
 final class ChargingWatcher {
     private let activities: ActivityCenter
@@ -24,9 +22,11 @@ final class ChargingWatcher {
 
     func start() {
         guard source == nil else { return }
-        lastOnAC = Self.read()?.onAC
+        lastOnAC = Self.isOnAC()
         let context = Unmanaged.passUnretained(self).toOpaque()
-        guard let src = IOPSNotificationCreateRunLoopSource(chargingPowerCallback, context)?.takeRetainedValue() else { return }
+        guard let src = IOPSNotificationCreateRunLoopSource(chargingPowerCallback, context)?.takeRetainedValue() else {
+            return
+        }
         CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
         source = src
     }
@@ -42,38 +42,35 @@ final class ChargingWatcher {
     }
 
     func powerChanged() {
-        guard source != nil, let info = Self.read() else { return }
+        guard source != nil, let onAC = Self.isOnAC() else { return }
         let previous = lastOnAC
-        lastOnAC = info.onAC
-        // Анимация только на подключение (не при каждом изменении процента).
-        guard previous == false, info.onAC else { return }
-        activities.post(LiveActivity(
-            id: Self.activityID,
-            priority: 75,
-            expiresAt: Date().addingTimeInterval(3),
-            extraWidth: 30,
-            leading: AnyView(ChargingBolt()),
-            // Справа ничего: только молния слева.
-            trailing: AnyView(Color.clear.frame(width: 1, height: 1))
-        ))
+        lastOnAC = onAC
+        guard previous == false, onAC else { return }
+        activities.post(
+            LiveActivity(
+                id: Self.activityID,
+                priority: 75,
+                expiresAt: Date().addingTimeInterval(3),
+                extraWidth: 30,
+                leading: AnyView(ChargingBolt()),
+                trailing: AnyView(Color.clear.frame(width: 1, height: 1))
+            ))
     }
 
-    private static func read() -> (percent: Int, onAC: Bool)? {
+    private static func isOnAC() -> Bool? {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
+            let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef]
+        else { return nil }
         for ps in list {
             guard let d = IOPSGetPowerSourceDescription(info, ps)?.takeUnretainedValue() as? [String: Any],
-                  (d[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType,
-                  let current = d[kIOPSCurrentCapacityKey] as? Int,
-                  let maximum = d[kIOPSMaxCapacityKey] as? Int, maximum > 0 else { continue }
-            let percent = min(100, max(0, Int((Double(current) / Double(maximum) * 100).rounded())))
-            return (percent, (d[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue)
+                (d[kIOPSTypeKey] as? String) == kIOPSInternalBatteryType
+            else { continue }
+            return (d[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
         }
         return nil
     }
 }
 
-/// Молния «вспыхивает»: появляется с пружиной и пару раз пульсирует.
 struct ChargingBolt: View {
     @State private var shown = false
     @State private var pulse = false

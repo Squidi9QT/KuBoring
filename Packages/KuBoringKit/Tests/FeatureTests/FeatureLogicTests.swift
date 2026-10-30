@@ -7,12 +7,13 @@ import XCTest
 @MainActor
 final class LyricsTests: XCTestCase {
     func testParsesLRCWithMultipleTags() {
-        let lines = LyricsService.parseLRC("""
-        [ar: Artist]
-        [00:01.50] Первая
-        [00:10.00][01:00.25] Припев
-        [00:05.00]
-        """)
+        let lines = LyricsService.parseLRC(
+            """
+            [ar: Artist]
+            [00:01.50] Первая
+            [00:10.00][01:00.25] Припев
+            [00:05.00]
+            """)
         XCTAssertEqual(lines.map(\.time), [1.5, 5, 10, 60.25])
         XCTAssertEqual(lines.map(\.text), ["Первая", "", "Припев", "Припев"])
     }
@@ -28,21 +29,25 @@ final class LyricsTests: XCTestCase {
     func testStateFromResponse() {
         XCTAssertEqual(LyricsService.state(from: ["instrumental": true]), .instrumental)
         XCTAssertEqual(LyricsService.state(from: ["plainLyrics": "a\n\nb"]), .plain(["a", "b"]))
-        XCTAssertEqual(LyricsService.state(from: ["syncedLyrics": "[00:02.00] x"]), .synced([LyricLine(time: 2, text: "x")]))
+        XCTAssertEqual(
+            LyricsService.state(from: ["syncedLyrics": "[00:02.00] x"]), .synced([LyricLine(time: 2, text: "x")]))
         XCTAssertNil(LyricsService.state(from: [:]))
     }
 }
 
 final class MeetingLinkTests: XCTestCase {
     func testFindsLinkInNotes() {
-        let url = MeetingLink.find(url: nil, location: "Переговорка 3",
-                                   notes: "Подключайтесь: https://us02web.zoom.us/j/123456?pwd=abc спасибо")
+        let url = MeetingLink.find(
+            url: nil, location: "Переговорка 3",
+            notes: "Подключайтесь: https://us02web.zoom.us/j/123456?pwd=abc спасибо")
         XCTAssertEqual(url?.host, "us02web.zoom.us")
     }
 
     func testIgnoresOrdinaryLinks() {
-        XCTAssertNil(MeetingLink.find(url: URL(string: "https://example.com"), location: nil, notes: "https://google.com"))
-        XCTAssertNotNil(MeetingLink.find(url: URL(string: "https://meet.google.com/abc-defg-hij"), location: nil, notes: nil))
+        XCTAssertNil(
+            MeetingLink.find(url: URL(string: "https://example.com"), location: nil, notes: "https://google.com"))
+        XCTAssertNotNil(
+            MeetingLink.find(url: URL(string: "https://meet.google.com/abc-defg-hij"), location: nil, notes: nil))
         XCTAssertNotNil(MeetingLink.find(url: nil, location: "https://telemost.yandex.ru/j/123", notes: nil))
     }
 }

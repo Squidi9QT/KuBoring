@@ -3,21 +3,16 @@ import KuBoringCore
 import AppKit
 import Observation
 
-/// Ключи настроек раздела «Музыка».
 enum MusicKeys {
     static let showInClosed = SettingKey<Bool>("feature.music.showInClosed", default: true)
     static let animateBars = SettingKey<Bool>("feature.music.animateBars", default: true)
-    /// "all" | "music" | "manual"
     static let sourceMode = SettingKey<String>("feature.music.sourceMode", default: MusicSourceMode.all)
     static let seenSources = SettingKey<[String]>("feature.music.seenSources", default: [])
     static let blockedSources = SettingKey<[String]>("feature.music.blockedSources", default: [])
-    /// Кнопка «Текст песни» во вкладке (тексты с lrclib.net).
     static let lyricsEnabled = SettingKey<Bool>("feature.music.lyrics", default: true)
-    /// Вкладка сейчас показывает текст вместо названия (запоминается).
     static let lyricsShown = SettingKey<Bool>("feature.music.lyricsShown", default: false)
 }
 
-/// Снимок состояния трека (позиция считается от timestamp).
 struct MusicTrack: Equatable {
     var title: String
     var artist: String
@@ -29,7 +24,6 @@ struct MusicTrack: Equatable {
     var playing: Bool
     var bundleID: String?
 
-    /// Текущая позиция в секундах на момент `date`.
     func position(at date: Date) -> Double {
         var p = elapsed
         if playing {
@@ -46,19 +40,15 @@ final class MusicModel {
     private(set) var rawArtwork: NSImage?
     private(set) var rawAppIcon: NSImage?
 
-    /// Хранилище настроек (для фильтра источников); задаётся фичей до start().
     @ObservationIgnored var settings: SettingsStore?
 
-    /// Виден ли экран (пауза анимаций и таймлайнов) — один на модель, его читают все вьюхи музыки.
     let display = MusicDisplayState()
 
-    /// Текст текущего трека.
     private(set) var lyrics: LyricsState = .idle
     @ObservationIgnored private let lyricsService = LyricsService()
     @ObservationIgnored private var lyricsTask: Task<Void, Never>?
     @ObservationIgnored private var lyricsKey: String?
 
-    /// Загрузить текст для текущего трека, если ещё не загружен (вызывается, когда текст показан).
     func loadLyricsIfNeeded() {
         guard let t = track, settings?[MusicKeys.lyricsEnabled] ?? true else { return }
         let key = LyricsService.key(title: t.title, artist: t.artist)
@@ -78,14 +68,12 @@ final class MusicModel {
         }
     }
 
-    /// Трек с учётом фильтра источников: запрещённый источник = «ничего не играет».
     var track: MusicTrack? {
         guard let t = rawTrack, isAllowed(bundleID: t.bundleID) else { return nil }
         return t
     }
     var artwork: NSImage? { track == nil ? nil : rawArtwork }
     var appIcon: NSImage? { track == nil ? nil : rawAppIcon }
-    /// Что-то играет, но источник скрыт настройками.
     var sourceHidden: Bool { rawTrack != nil && track == nil }
 
     func isAllowed(bundleID: String?) -> Bool {
@@ -117,7 +105,6 @@ final class MusicModel {
     @ObservationIgnored private var iconBundleID: String?
     @ObservationIgnored private var streamTask: Task<Void, Never>?
     @ObservationIgnored private var process: Process?
-    /// После перемотки адаптер ещё какое-то время присылает старую позицию — до этого момента не верим ей.
     @ObservationIgnored private var seekGuardUntil: Date?
     @ObservationIgnored private var scriptPath: String?
     @ObservationIgnored private var frameworkPath: String?
@@ -171,7 +158,6 @@ final class MusicModel {
             let started = Date()
             await runOnce()
             if Task.isCancelled { break }
-            // Если процесс падает сразу (нет прав и т.п.) — ждём дольше.
             let lived = Date().timeIntervalSince(started)
             let pause: UInt64 = lived < 3 ? 15_000_000_000 : 3_000_000_000
             try? await Task.sleep(nanoseconds: pause)
@@ -200,10 +186,8 @@ final class MusicModel {
                 handle(line: line)
             }
         } catch {
-            // поток оборвался — перезапустим снаружи
         }
         if p.isRunning { p.terminate() }
-        // Не затираем ссылку на более новый процесс (stop() + start() во время разбора старого).
         if process === p { process = nil }
         let proc = p
         await Task.detached { proc.waitUntilExit() }.value
@@ -217,12 +201,14 @@ final class MusicModel {
 
     private func handle(line: String) {
         guard !line.isEmpty,
-              let data = line.data(using: .utf8),
-              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+            let data = line.data(using: .utf8),
+            let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return }
         let payload = (obj["payload"] as? [String: Any]) ?? obj
 
         let title = (payload["title"] as? String) ?? ""
-        let bundle = (payload["parentApplicationBundleIdentifier"] as? String)
+        let bundle =
+            (payload["parentApplicationBundleIdentifier"] as? String)
             ?? (payload["bundleIdentifier"] as? String)
         if title.isEmpty {
             if rawTrack != nil || rawArtwork != nil {
@@ -255,7 +241,6 @@ final class MusicModel {
         )
         applySeekGuard(to: &newTrack)
 
-        // Обложка: декодируем только если строка изменилась.
         if let s = payload["artworkData"] as? String, !s.isEmpty {
             if s != lastArtworkString {
                 lastArtworkString = s
@@ -278,20 +263,18 @@ final class MusicModel {
         onChange?()
     }
 
-    /// Пока плеер не применил перемотку, оставляем позицию, выставленную в seek(to:).
-    /// Как только пришла позиция рядом с ожидаемой (или прошло 2 с, или сменился трек) — снова верим адаптеру.
     private func applySeekGuard(to track: inout MusicTrack) {
         guard let until = seekGuardUntil else { return }
         let now = Date()
         guard now < until, let current = rawTrack,
-              current.title == track.title, current.bundleID == track.bundleID else {
+            current.title == track.title, current.bundleID == track.bundleID
+        else {
             seekGuardUntil = nil
             return
         }
         if abs(track.position(at: now) - current.position(at: now)) < 1.5 {
             seekGuardUntil = nil
         } else {
-            // От «сейчас», чтобы пауза во время ожидания не откатила позицию назад.
             track.elapsed = current.position(at: now)
             track.timestamp = now
         }
@@ -304,7 +287,6 @@ final class MusicModel {
 
     // MARK: Команды
 
-    /// Коды MRCommand: 2 — play/pause, 4 — следующий, 5 — предыдущий.
     func togglePlayPause() {
         if var t = rawTrack {
             let now = Date()
@@ -320,9 +302,6 @@ final class MusicModel {
     func next() { runAdapter(["send", "4"]) }
     func previous() { runAdapter(["send", "5"]) }
 
-    /// Перемотка (секунды). Music и Spotify перематываем их собственной AppleScript-командой:
-    /// MRMediaRemoteSetElapsedTime, через который перематывает адаптер, на macOS 26 всегда отвечает отказом.
-    /// Остальные приложения — через адаптер (он принимает микросекунды).
     func seek(to seconds: Double) {
         var s = max(0, seconds)
         let before = rawTrack
@@ -342,11 +321,11 @@ final class MusicModel {
         }
     }
 
-    /// Плеер перемотку не принял — сразу возвращаем полоску на реальную позицию, а не держим «фальшивую» 2 с.
     private func seekFailed(restoring before: MusicTrack?) {
         seekGuardUntil = nil
         guard let before, let current = rawTrack,
-              current.title == before.title, current.bundleID == before.bundleID else { return }
+            current.title == before.title, current.bundleID == before.bundleID
+        else { return }
         var t = current
         let now = Date()
         t.elapsed = before.position(at: now)
@@ -355,10 +334,8 @@ final class MusicModel {
         onChange?()
     }
 
-    /// AppleScript перемотки для плееров, которые его поддерживают; nil — перематывать через адаптер.
     private static func seekScript(bundleID: String?, seconds: Double) -> String? {
         guard let id = bundleID, ["com.apple.Music", "com.spotify.client"].contains(id) else { return nil }
-        // String(format:) не зависит от локали: десятичная точка, как ждёт AppleScript.
         let position = String(format: "%.3f", seconds)
         return "tell application id \"\(id)\" to if it is running then set player position to \(position)"
     }

@@ -1,6 +1,5 @@
 import AppKit
 
-/// Иконка в строке меню: «Настройки…» и «Выйти».
 @MainActor
 public final class StatusItemController: NSObject {
     private var statusItem: NSStatusItem?
@@ -17,8 +16,9 @@ public final class StatusItemController: NSObject {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled",
-                                accessibilityDescription: "KuBoring")
+            let image = NSImage(
+                systemSymbolName: "rectangle.topthird.inset.filled",
+                accessibilityDescription: "KuBoring")
             image?.isTemplate = true
             button.image = image
             button.toolTip = "KuBoring"

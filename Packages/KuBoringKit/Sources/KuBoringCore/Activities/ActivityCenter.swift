@@ -1,7 +1,6 @@
 import SwiftUI
 import Observation
 
-/// Живая активность в закрытой шторке.
 public struct LiveActivity: Identifiable {
     public let id: String
     public var priority: Int
@@ -10,8 +9,10 @@ public struct LiveActivity: Identifiable {
     public var trailing: AnyView
     public var extraWidth: Double
 
-    public init(id: String, priority: Int, expiresAt: Date? = nil, extraWidth: Double = 40,
-                leading: AnyView, trailing: AnyView) {
+    public init(
+        id: String, priority: Int, expiresAt: Date? = nil, extraWidth: Double = 40,
+        leading: AnyView, trailing: AnyView
+    ) {
         self.id = id
         self.priority = priority
         self.expiresAt = expiresAt
@@ -28,7 +29,6 @@ public final class ActivityCenter {
 
     public init() {}
 
-    /// Добавить или заменить активность по id.
     public func post(_ activity: LiveActivity) {
         activities[activity.id] = activity
         expiryTasks[activity.id]?.cancel()
@@ -49,7 +49,6 @@ public final class ActivityCenter {
         expiryTasks[id] = nil
     }
 
-    /// Самая приоритетная не истёкшая активность.
     public var current: LiveActivity? {
         let now = Date()
         return activities.values
@@ -58,7 +57,6 @@ public final class ActivityCenter {
     }
 
     private func expire(id: String, expectedDate: Date) {
-        // Если активность успели обновить — не трогаем.
         guard let a = activities[id], a.expiresAt == expectedDate else { return }
         remove(id: id)
     }

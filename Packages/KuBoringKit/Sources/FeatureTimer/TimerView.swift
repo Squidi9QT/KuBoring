@@ -1,7 +1,6 @@
 import SwiftUI
 import KuBoringCore
 
-/// Вкладка «Таймер».
 struct TimerView: View {
     let model: TimerModel
 
@@ -12,10 +11,12 @@ struct TimerView: View {
             let k = AdaptiveMetrics(size: geo.size).scale
             let tall = h > w * 0.75
             let showRing = h >= 120
-            let ringSize: CGFloat = tall
+            let ringSize: CGFloat =
+                tall
                 ? adaptiveClamp(min(h * 0.5, w * 0.6), 80, 320)
                 : adaptiveClamp(min(h - 12, w * 0.38), 64, 320)
-            let layout = tall
+            let layout =
+                tall
                 ? AnyLayout(VStackLayout(alignment: .center, spacing: 12 * k))
                 : AnyLayout(HStackLayout(alignment: .center, spacing: 22 * k))
 
@@ -56,7 +57,10 @@ struct TimerView: View {
             let blockW = adaptiveClamp(w * 0.28, 90, 260)
             VStack(spacing: 6) {
                 Text(TimerModel.format(model.remaining))
-                    .font(.system(size: adaptiveClamp(h * 0.42, 28, 80), weight: .semibold, design: .rounded).monospacedDigit())
+                    .font(
+                        .system(size: adaptiveClamp(h * 0.42, 28, 80), weight: .semibold, design: .rounded)
+                            .monospacedDigit()
+                    )
                     .foregroundStyle(Color.white)
                     .contentTransition(.numericText(countsDown: true))
                     .lineLimit(1)
@@ -91,9 +95,11 @@ struct TimerView: View {
                     .fixedSize()
             } else {
                 ForEach(Array(model.presets.enumerated()), id: \.offset) { _, m in
-                    PillButton(title: "\(m) мин",
-                               selected: !model.isRunning && Int(model.total) == m * 60,
-                               scale: k) {
+                    PillButton(
+                        title: "\(m) мин",
+                        selected: !model.isRunning && Int(model.total) == m * 60,
+                        scale: k
+                    ) {
                         withAnimation(.smooth) { model.set(minutes: m) }
                     }
                 }
@@ -104,7 +110,6 @@ struct TimerView: View {
     private func controls(k: CGFloat, tall: Bool) -> some View {
         let btn = adaptiveClamp(32 * k, 28, 52)
         return VStack(alignment: tall ? .center : .leading, spacing: 12 * k) {
-            // Пресеты в ряд; если не влезают по ширине — прокрутка.
             ViewThatFits(in: .horizontal) {
                 presetsRow(k: k)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -123,15 +128,17 @@ struct TimerView: View {
                 Button {
                     withAnimation(.smooth) { model.toggle() }
                 } label: {
-                    Label(model.isRunning ? "Пауза" : (model.isPaused ? "Продолжить" : "Старт"),
-                          systemImage: model.isRunning ? "pause.fill" : "play.fill")
-                        .font(.system(size: 13 * k, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.black)
-                        .lineLimit(1)
-                        .padding(.horizontal, 16 * k)
-                        .frame(height: btn)
-                        .background(Capsule().fill(model.tint))
-                        .contentShape(Capsule())
+                    Label(
+                        model.isRunning ? "Пауза" : (model.isPaused ? "Продолжить" : "Старт"),
+                        systemImage: model.isRunning ? "pause.fill" : "play.fill"
+                    )
+                    .font(.system(size: 13 * k, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.black)
+                    .lineLimit(1)
+                    .padding(.horizontal, 16 * k)
+                    .frame(height: btn)
+                    .background(Capsule().fill(model.tint))
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
 

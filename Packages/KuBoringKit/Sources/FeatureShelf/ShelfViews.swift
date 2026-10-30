@@ -2,7 +2,6 @@ import SwiftUI
 import AppKit
 import KuBoringCore
 
-/// Хранит NSView-якорь для окна «Поделиться».
 @MainActor
 final class ShelfViewHolder {
     weak var view: NSView?
@@ -23,7 +22,6 @@ struct ShelfViewAnchor: NSViewRepresentable {
     }
 }
 
-/// Рамка зоны drop поверх области файлов полки (не шапки). Подсветка — по точке курсора из NotchController.
 private struct ShelfDropZone: View {
     let notch: NotchController?
     let empty: Bool
@@ -32,8 +30,9 @@ private struct ShelfDropZone: View {
         if let notch, notch.dragInside || notch.state.phase == .dragging {
             GeometryReader { proxy in
                 let hovering = notch.dragLocation.map { proxy.frame(in: .global).contains($0) } ?? false
-                DropZoneOverlay(label: "Отпусти, чтобы положить на полку", hovering: hovering,
-                                outerRadius: 14, outerInset: 0, inset: 0, showsLabel: empty)
+                DropZoneOverlay(
+                    label: "Отпусти, чтобы положить на полку", hovering: hovering,
+                    outerRadius: 14, outerInset: 0, inset: 0, showsLabel: empty)
             }
             .padding(.horizontal, 16)
             .allowsHitTesting(false)
@@ -48,18 +47,15 @@ struct ShelfTabView: View {
     @State private var selecting = false
     @State private var selected: Set<UUID> = []
     @State private var confirmClear = false
-    /// Переименовываемый файл (инлайн-поле в шапке).
     @State private var renaming: ShelfItem?
     @State private var renameText = ""
     @FocusState private var renameFocused: Bool
 
-    /// Файл сейчас тащат над шторкой (показана рамка ShelfDropZone).
     private var isDragging: Bool {
         guard let notch = model.notch else { return false }
         return notch.dragInside || notch.state.phase == .dragging
     }
 
-    /// Отмеченные, которые ещё есть на полке.
     private var selectedCount: Int {
         model.items.reduce(0) { $0 + (selected.contains($1.id) ? 1 : 0) }
     }
@@ -67,10 +63,8 @@ struct ShelfTabView: View {
     var body: some View {
         GeometryReader { geo in
             let listH = max(40, geo.size.height - 52)
-            // Много места по высоте — несколько рядов (вертикальная сетка), иначе один ряд.
             let multiRow = listH >= 230
             let k = AdaptiveMetrics(size: geo.size).scale
-            // В один ряд карточка не выше доступного места, иначе её обрежет снизу.
             let cardH: CGFloat = multiRow ? adaptiveClamp(115 * k, 110, 140) : adaptiveClamp(listH - 4, 36, 140)
             let cardW = adaptiveClamp(cardH * 0.82, 62, 130)
 
@@ -98,8 +92,10 @@ struct ShelfTabView: View {
                     )
                 } else if multiRow {
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: cardW, maximum: cardW), spacing: 10)],
-                                  alignment: .leading, spacing: 10) {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: cardW, maximum: cardW), spacing: 10)],
+                            alignment: .leading, spacing: 10
+                        ) {
                             ForEach(model.items) { item in
                                 card(item, height: cardH)
                             }
@@ -135,14 +131,14 @@ struct ShelfTabView: View {
     }
 
     private func card(_ item: ShelfItem, height: CGFloat) -> some View {
-        ShelfCard(item: item, model: model, onShare: share, onRename: startRename,
-                  selecting: selecting,
-                  isSelected: selected.contains(item.id),
-                  onToggle: { toggle(item) },
-                  cardHeight: height)
+        ShelfCard(
+            item: item, model: model, onShare: share, onRename: startRename,
+            selecting: selecting,
+            isSelected: selected.contains(item.id),
+            onToggle: { toggle(item) },
+            cardHeight: height)
     }
 
-    /// Шапка; в режиме выбора при очистке на её месте — инлайн-подтверждение (без системных диалогов).
     @ViewBuilder
     private var header: some View {
         ZStack {
@@ -186,9 +182,7 @@ struct ShelfTabView: View {
         renameText = (item.name as NSString).deletingPathExtension
         renaming = item
         model.notch?.hold("shelf.rename", true)
-        // Меню открывали правым кликом — панель могла не стать key; без этого поле не примет ввод.
         model.notch?.requestKeyboardFocus()
-        // Фокус — после появления поля.
         Task { @MainActor in renameFocused = true }
     }
 
@@ -296,8 +290,10 @@ struct ShelfTabView: View {
         }
     }
 
-    private func headerButton(_ title: String, weight: Font.Weight = .regular,
-                              action: @escaping () -> Void) -> some View {
+    private func headerButton(
+        _ title: String, weight: Font.Weight = .regular,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 12, weight: weight))
@@ -325,8 +321,6 @@ struct ShelfTabView: View {
     }
 }
 
-/// Перетаскивание работает всегда; в режиме выбора клик отмечает карточку, вне его двойной клик открывает файл.
-/// Модификаторы одни и те же в обоих режимах: карточка не пересоздаётся при входе в выбор.
 private struct ShelfCardInteraction: ViewModifier {
     let item: ShelfItem
     let model: ShelfModel
@@ -336,17 +330,16 @@ private struct ShelfCardInteraction: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onDrag {
-                // Отдаём ссылку на сам файл (public.file-url), а не копию данных:
-                // так его принимают Finder, мессенджеры и браузеры.
                 guard let url = model.url(for: item) else { return NSItemProvider() }
                 let provider = NSItemProvider(object: url as NSURL)
                 provider.suggestedName = url.lastPathComponent
                 return provider
             }
             .onTapGesture { if selecting { onToggle() } }
-            .simultaneousGesture(TapGesture(count: 2).onEnded {
-                if !selecting { model.open(item) }
-            })
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded {
+                    if !selecting { model.open(item) }
+                })
     }
 }
 
@@ -437,20 +430,27 @@ struct ShelfSettingsView: View {
     var body: some View {
         Group {
             SettingsSection("Полка", footer: "Файлы не копируются: полка хранит только ссылки на них.") {
-                SettingsSlider("Максимум файлов",
-                               hint: "Старые файлы убираются, когда лимит превышен",
-                               value: Binding<Double>(
-                                   get: { Double(settings[ShelfKeys.maxCount]) },
-                                   set: { settings[ShelfKeys.maxCount] = Int($0); model.trimToMax() }
-                               ),
-                               in: 5...50, step: 1)
-                SettingsToggle("Помнить файлы после перезапуска",
-                               isOn: Binding<Bool>(
-                                   get: { settings[ShelfKeys.remember] },
-                                   set: { settings[ShelfKeys.remember] = $0; model.persist() }
-                               ))
-                SettingsToggle("Очищать полку при выходе",
-                               isOn: settings.binding(ShelfKeys.clearOnQuit))
+                SettingsSlider(
+                    "Максимум файлов",
+                    hint: "Старые файлы убираются, когда лимит превышен",
+                    value: Binding<Double>(
+                        get: { Double(settings[ShelfKeys.maxCount]) },
+                        set: {
+                            settings[ShelfKeys.maxCount] = Int($0); model.trimToMax()
+                        }
+                    ),
+                    in: 5...50, step: 1)
+                SettingsToggle(
+                    "Помнить файлы после перезапуска",
+                    isOn: Binding<Bool>(
+                        get: { settings[ShelfKeys.remember] },
+                        set: {
+                            settings[ShelfKeys.remember] = $0; model.persist()
+                        }
+                    ))
+                SettingsToggle(
+                    "Очищать полку при выходе",
+                    isOn: settings.binding(ShelfKeys.clearOnQuit))
             }
         }
     }

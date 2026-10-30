@@ -10,7 +10,6 @@ import FeatureSystem
 import FeatureCalendar
 import FeatureIndicators
 
-/// Точка сборки: создаёт ядро и регистрирует фичи.
 @MainActor
 final class Composition {
     let settings: SettingsStore
@@ -29,10 +28,10 @@ final class Composition {
         let context = FeatureContext(settings: settings, notch: notch, activities: activities)
         let registry = FeatureRegistry(context: context)
 
-        // Порядок регистрации = порядок вкладок по умолчанию.
-        registry.register(MusicFeature(
-            adapterScriptURL: Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl"),
-            frameworkURL: Bundle.main.privateFrameworksURL?.appendingPathComponent("MediaRemoteAdapter.framework")))
+        registry.register(
+            MusicFeature(
+                adapterScriptURL: Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl"),
+                frameworkURL: Bundle.main.privateFrameworksURL?.appendingPathComponent("MediaRemoteAdapter.framework")))
         registry.register(ShelfFeature())
         registry.register(ClipboardFeature())
         registry.register(TimerFeature())
@@ -49,18 +48,23 @@ final class Composition {
         self.activities = activities
         self.registry = registry
         self.settingsWindow = settingsWindow
-        self.windows = NotchWindowManager(settings: settings, notch: notch,
-                                          activities: activities, registry: registry,
-                                          onOpenSettings: { [settingsWindow] in settingsWindow.show() })
-        let onboarding = OnboardingWindowController(settings: settings, onOpenSettings: { [settingsWindow] in
-            settingsWindow.show()
-        })
+        self.windows = NotchWindowManager(
+            settings: settings, notch: notch,
+            activities: activities, registry: registry,
+            onOpenSettings: { [settingsWindow] in settingsWindow.show() })
+        let onboarding = OnboardingWindowController(
+            settings: settings,
+            onOpenSettings: { [settingsWindow] in
+                settingsWindow.show()
+            })
         self.onboarding = onboarding
-        self.statusItem = StatusItemController(onOpenSettings: { [settingsWindow] in
-            settingsWindow.show()
-        }, onShowWelcome: { [onboarding] in
-            onboarding.show()
-        })
+        self.statusItem = StatusItemController(
+            onOpenSettings: { [settingsWindow] in
+                settingsWindow.show()
+            },
+            onShowWelcome: { [onboarding] in
+                onboarding.show()
+            })
     }
 
     func start() {

@@ -1,25 +1,20 @@
 import SwiftUI
 import Observation
 
-/// Кто из экранов сейчас «хозяин» шторки (при нескольких мониторах состояние общее).
 @MainActor @Observable
 final class NotchScreenArbiter {
     var activeID: CGDirectDisplayID?
     init(activeID: CGDirectDisplayID? = nil) { self.activeID = activeID }
 }
 
-/// Размытие для перехода появления контента.
 private struct BlurModifier: ViewModifier {
     let radius: Double
     func body(content: Content) -> some View { content.blur(radius: radius) }
 }
 
-/// Направление перехода между вкладками. Класс-коробка: transition читает направление в момент
-/// отрисовки, поэтому оно верно и для уходящей, и для приходящей вкладки.
 @MainActor
 final class TabNav {
     var index: Int?
-    /// +1 — новая вкладка правее в списке (контент въезжает справа), -1 — левее.
     var direction: Double = 1
     var wasExpanded = false
 
@@ -30,14 +25,12 @@ final class TabNav {
     }
 }
 
-/// Смещение + прозрачность + масштаб + размытие для перехода вкладок.
 private struct TabSlideModifier: ViewModifier {
     let nav: TabNav
     let active: Bool
     let incoming: Bool
 
     func body(content: Content) -> some View {
-        // Приходящая стартует со стороны направления, уходящая уезжает в противоположную.
         let sign = incoming ? nav.direction : -nav.direction
         content
             .offset(x: active ? sign * 24 : 0)
@@ -47,14 +40,12 @@ private struct TabSlideModifier: ViewModifier {
     }
 }
 
-/// Ключ анимации формы: одна пружина на размер и состояние.
 private struct ShapeKey: Equatable {
     let width: Double
     let height: Double
     let expanded: Bool
 }
 
-/// Корневая вьюха окна шторки.
 struct NotchRootView: View {
     let displayID: CGDirectDisplayID
     let physicalNotch: CGSize
@@ -71,36 +62,36 @@ struct NotchRootView: View {
     @Namespace private var tabNamespace
     @State private var nav = TabNav()
 
-    /// Одинаковый отступ области контента от боков и низа тела шторки (от него считается концентричная рамка drop-зоны).
     private static let contentInset: Double = 12
 
     private var isActiveScreen: Bool { arbiter.activeID == nil || arbiter.activeID == displayID }
 
     var body: some View {
-        // Геометрия и состояние читаются один раз за проход body.
         let g = settings[CoreKeys.geometry].clamped()
         let phase: NotchPhase = isActiveScreen ? notch.state.phase : .closed
         let isExpanded = phase == .open || phase == .dragging
         let tab = registry.resolvedTab(notch.state.selectedTab)
-        // Панель аккумулятора — базового размера, даже поверх большой вкладки (ИИ).
         let openSize = NotchLayout.openSize(g, preferred: notch.batteryPanelOpen ? nil : tab?.preferredOpenSize)
         let activity = activities.current
 
         let closed = NotchLayout.closedSize(g, physical: physicalNotch, extraWidth: activity?.extraWidth ?? 0)
         let peek = phase == .peeking
-        let size = isExpanded
+        let size =
+            isExpanded
             ? openSize
             : CGSize(width: closed.width + (peek ? 8 : 0), height: closed.height + (peek ? 3 : 0))
         let ear = NotchLayout.ear(open: isExpanded, cornerRadius: g.cornerRadius)
-        let bottom = NotchLayout.bottomRadius(open: isExpanded, cornerRadius: g.cornerRadius,
-                                              height: size.height)
+        let bottom = NotchLayout.bottomRadius(
+            open: isExpanded, cornerRadius: g.cornerRadius,
+            height: size.height)
         let openEar = NotchLayout.maxEar(g)
-        let spring = Animation.interactiveSpring(response: 0.38 / g.animationSpeed,
-                                                 dampingFraction: 0.8, blendDuration: 0)
+        let spring = Animation.interactiveSpring(
+            response: 0.38 / g.animationSpeed,
+            dampingFraction: 0.8, blendDuration: 0)
         let key = ShapeKey(width: size.width, height: size.height, expanded: isExpanded)
-        // Смена вкладки при открытой шторке (размер ИИ больше) идёт той же пружиной, что и контент.
-        let tabSpring = Animation.interactiveSpring(response: 0.35 / g.animationSpeed,
-                                                    dampingFraction: 0.86, blendDuration: 0)
+        let tabSpring = Animation.interactiveSpring(
+            response: 0.35 / g.animationSpeed,
+            dampingFraction: 0.86, blendDuration: 0)
         let shapeSpring = (isExpanded && nav.wasExpanded) ? tabSpring : spring
         let _ = (nav.wasExpanded = isExpanded)
 
@@ -115,21 +106,26 @@ struct NotchRootView: View {
                         if !isExpanded { notch.send(.clicked) }
                     }
 
-                // Контент рисуется в конечном размере, форма-маска раскрывается поверх.
                 ZStack(alignment: .top) {
                     if isExpanded {
                         openContent(tab: tab, phase: phase, tabSpring: tabSpring, bottomRadius: bottom)
                             .padding(.horizontal, openEar)
-                            .frame(width: openSize.width + 2 * openEar, height: openSize.height,
-                                   alignment: .top)
+                            .frame(
+                                width: openSize.width + 2 * openEar, height: openSize.height,
+                                alignment: .top
+                            )
                             .overlay(alignment: .top) { batteryOverlay(openEar: openEar, bottomRadius: bottom) }
-                            .transition(.asymmetric(
-                                insertion: AnyTransition.opacity
-                                    .combined(with: .scale(scale: 0.9, anchor: .top))
-                                    .combined(with: .modifier(active: BlurModifier(radius: 8),
-                                                              identity: BlurModifier(radius: 0)))
-                                    .animation(spring.delay(0.06)),
-                                removal: AnyTransition.opacity.animation(.easeOut(duration: 0.12))))
+                            .transition(
+                                .asymmetric(
+                                    insertion: AnyTransition.opacity
+                                        .combined(with: .scale(scale: 0.9, anchor: .top))
+                                        .combined(
+                                            with: .modifier(
+                                                active: BlurModifier(radius: 8),
+                                                identity: BlurModifier(radius: 0))
+                                        )
+                                        .animation(spring.delay(0.06)),
+                                    removal: AnyTransition.opacity.animation(.easeOut(duration: 0.12))))
                     } else {
                         closedContent(activity: activity, size: size)
                             .padding(.horizontal, ear)
@@ -173,8 +169,10 @@ struct NotchRootView: View {
 
     // MARK: Открытое состояние
 
-    private func openContent(tab: NotchFeature?, phase: NotchPhase, tabSpring: Animation,
-                             bottomRadius: Double) -> some View {
+    private func openContent(
+        tab: NotchFeature?, phase: NotchPhase, tabSpring: Animation,
+        bottomRadius: Double
+    ) -> some View {
         let tabs = registry.enabledTabs
         nav.update(index: tabs.firstIndex(where: { $0.id == tab?.id }))
         let navBox = nav
@@ -185,13 +183,14 @@ struct NotchRootView: View {
                 if let tab, let view = registry.tabView(for: tab) {
                     view
                         .id(tab.id)
-                        .transition(.asymmetric(
-                            insertion: .modifier(
-                                active: TabSlideModifier(nav: navBox, active: true, incoming: true),
-                                identity: TabSlideModifier(nav: navBox, active: false, incoming: true)),
-                            removal: .modifier(
-                                active: TabSlideModifier(nav: navBox, active: true, incoming: false),
-                                identity: TabSlideModifier(nav: navBox, active: false, incoming: false))))
+                        .transition(
+                            .asymmetric(
+                                insertion: .modifier(
+                                    active: TabSlideModifier(nav: navBox, active: true, incoming: true),
+                                    identity: TabSlideModifier(nav: navBox, active: false, incoming: true)),
+                                removal: .modifier(
+                                    active: TabSlideModifier(nav: navBox, active: true, incoming: false),
+                                    identity: TabSlideModifier(nav: navBox, active: false, incoming: false))))
                 } else {
                     VStack(spacing: 6) {
                         Image(systemName: "square.dashed").font(.title2)
@@ -205,7 +204,6 @@ struct NotchRootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-            // Под панелью аккумулятора вкладку не показываем (вкладка ИИ шире — выглядывала бы по краям).
             .opacity(notch.batteryPanelOpen ? 0 : 1)
             .padding(.horizontal, Self.contentInset)
             .padding(.bottom, Self.contentInset)
@@ -214,13 +212,13 @@ struct NotchRootView: View {
         .foregroundStyle(.white)
     }
 
-    /// Панель аккумулятора ровно на месте области контента: те же отступы, что у вкладок,
-    /// углы концентричны нижним углам шторки. Не зависит от размера текущей вкладки.
     @ViewBuilder
     private func batteryOverlay(openEar: Double, bottomRadius: Double) -> some View {
         if notch.batteryPanelOpen && settings[CoreKeys.showBattery] {
-            BatteryPanel(battery: battery, controls: controls,
-                         cornerRadius: max(10, bottomRadius - Self.contentInset)) {
+            BatteryPanel(
+                battery: battery, controls: controls,
+                cornerRadius: max(10, bottomRadius - Self.contentInset)
+            ) {
                 notch.batteryPanelOpen = false
             }
             .padding(.top, max(28, physicalNotch.height))
@@ -230,8 +228,10 @@ struct NotchRootView: View {
         }
     }
 
-    private func header(tabs: [NotchFeature], selectedID: String?, height: Double,
-                        spring: Animation) -> some View {
+    private func header(
+        tabs: [NotchFeature], selectedID: String?, height: Double,
+        spring: Animation
+    ) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(tabs, id: \.id) { tabButton($0, selected: $0.id == selectedID) }

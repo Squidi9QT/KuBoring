@@ -33,7 +33,6 @@ enum AIService: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Только SF Symbols, без логотипов.
     var symbol: String {
         switch self {
         case .claude: return "sparkles"
@@ -58,7 +57,6 @@ enum AIService: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Стартовая страница. У «Браузера» своя (из настроек) — см. AIModel.homeURL.
     var url: URL {
         switch self {
         case .claude: return URL(string: "https://claude.ai/new")!
@@ -71,7 +69,6 @@ enum AIService: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Домен для подписи в настройках.
     var domain: String {
         switch self {
         case .browser: return "любые сайты"
@@ -79,13 +76,13 @@ enum AIService: String, CaseIterable, Identifiable {
         }
     }
 
-    /// «Свои» домены: переходы по ним остаются внутри окна (вход через Google/почту не выкидывает наружу).
     var ownHosts: [String] {
         switch self {
         case .claude: return ["claude.ai", "anthropic.com"]
         case .chatgpt: return ["chatgpt.com", "openai.com", "auth.openai.com", "oaistatic.com", "oaiusercontent.com"]
         case .perplexity: return ["perplexity.ai", "pplx.ai"]
-        case .gemini: return ["gemini.google.com", "accounts.google.com", "google.com", "gstatic.com", "googleusercontent.com"]
+        case .gemini:
+            return ["gemini.google.com", "accounts.google.com", "google.com", "gstatic.com", "googleusercontent.com"]
         case .qwen: return ["qwen.ai", "aliyun.com", "alibabacloud.com"]
         case .deepseek: return ["deepseek.com"]
         case .browser: return []
@@ -116,28 +113,21 @@ enum SearchEngine: String, CaseIterable, Identifiable {
 }
 
 enum AIKeys {
-    // Устаревшие тумблеры: читаются только для миграции в `services`.
     static let showClaude = SettingKey<Bool>("feature.ai.showClaude", default: true)
     static let showPerplexity = SettingKey<Bool>("feature.ai.showPerplexity", default: true)
-    /// Включённые сервисы (id), порядок = порядок в переключателе. Пусто = ещё не мигрировано.
     static let services = SettingKey<[String]>("feature.ai.services", default: [])
     static let defaultService = SettingKey<String>("feature.ai.defaultService", default: "claude")
     static let width = SettingKey<Double>("feature.ai.width", default: 760)
     static let height = SettingKey<Double>("feature.ai.height", default: 580)
     static let browserHome = SettingKey<String>("feature.ai.browserHome", default: "https://www.google.com")
     static let searchEngine = SettingKey<String>("feature.ai.searchEngine", default: "google")
-    /// Сколько веб-страниц держать в памяти одновременно (0 = все сервисы).
     static let keepAlive = SettingKey<Int>("feature.ai.keepAlive", default: 2)
-    /// Через сколько минут после закрытия шторки выгрузить страницы (0 = никогда).
     static let unloadMinutes = SettingKey<Int>("feature.ai.unloadMinutes", default: 10)
 }
 
-/// WKWebView, который сообщает о фокусе ввода (нужен для hold("ai.typing")).
 final class FocusWebView: WKWebView {
     var onFocusChange: ((Bool) -> Void)?
-    /// Какому сервису принадлежит окно (делегат решает, что открывать внутри).
     var service: AIService?
-    /// Файл тащат над страницей / ушли / бросили (для подсветки зоны).
     var onDragHover: ((Bool) -> Void)?
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -177,14 +167,12 @@ final class FocusWebView: WKWebView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Клик по странице — человек собирается печатать: окно шторки должно стать key.
         if let window, !window.isKeyWindow { window.makeKey() }
         onFocusChange?(true)
         super.mouseDown(with: event)
     }
 }
 
-/// Держит по одному веб-окну на сервис, чтобы вход и переписка не терялись при переключении.
 @MainActor @Observable
 final class AIModel {
     var current: AIService = .claude
@@ -192,7 +180,6 @@ final class AIModel {
     var canGoBack = false
     var canGoForward = false
     var statusMessage: String?
-    /// Текст в адресной строке «Браузера».
     var addressText = ""
 
     private(set) var settings: SettingsStore?
@@ -202,15 +189,14 @@ final class AIModel {
     @ObservationIgnored private var typing = false
     @ObservationIgnored private var addressEditing = false
     @ObservationIgnored private let delegate = AIWebDelegate()
-    // Политика выгрузки
-    @ObservationIgnored private var accessOrder: [AIService] = []   // последний = использован позже всех
+    @ObservationIgnored private var accessOrder: [AIService] = []
     @ObservationIgnored private var idleTask: Task<Void, Never>?
     @ObservationIgnored private var viewShown = false
     @ObservationIgnored private var typingService: AIService?
     @ObservationIgnored private var lastTypedAt: Date?
 
-    /// Сайтам лучше работает обычный Safari.
-    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+    private static let userAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 
     static let typingReason = "ai.typing"
 
@@ -221,14 +207,12 @@ final class AIModel {
     func attach(_ context: FeatureContext) {
         settings = context.settings
         notch = context.notch
-        // Миграция: старые тумблеры showClaude/showPerplexity -> список services.
         if let settings, settings[AIKeys.services].isEmpty {
             settings[AIKeys.services] = enabledServices.map { $0.rawValue }
         }
         current = defaultVisibleService
     }
 
-    /// Освободить всё: убрать hold, выбросить веб-окна.
     func shutdown() {
         setTyping(false)
         idleTask?.cancel()
@@ -247,12 +231,10 @@ final class AIModel {
 
     // MARK: - Настройки
 
-    /// Включённые сервисы в порядке переключателя.
     var enabledServices: [AIService] {
         guard let settings else { return [.claude, .perplexity] }
         var ids = settings[AIKeys.services]
         if ids.isEmpty {
-            // Ключа ещё нет: собираем из старых тумблеров.
             if settings[AIKeys.showClaude] { ids.append(AIService.claude.rawValue) }
             if settings[AIKeys.showPerplexity] { ids.append(AIService.perplexity.rawValue) }
         }
@@ -265,7 +247,6 @@ final class AIModel {
 
     var visibleServices: [AIService] { enabledServices }
 
-    /// Для списка в настройках: сначала включённые (в своём порядке), потом выключенные.
     var settingsOrderedServices: [AIService] {
         let enabled = enabledServices
         return enabled + AIService.allCases.filter { !enabled.contains($0) }
@@ -274,7 +255,7 @@ final class AIModel {
     var defaultVisibleService: AIService {
         let visible = visibleServices
         if let raw = settings?[AIKeys.defaultService], let service = AIService(rawValue: raw),
-           visible.contains(service) {
+            visible.contains(service) {
             return service
         }
         return visible[0]
@@ -290,7 +271,6 @@ final class AIModel {
 
     func isEnabled(_ service: AIService) -> Bool { enabledServices.contains(service) }
 
-    /// Нельзя выключить последний включённый сервис.
     func canToggle(_ service: AIService) -> Bool {
         !(isEnabled(service) && enabledServices.count <= 1)
     }
@@ -305,7 +285,6 @@ final class AIModel {
             list.removeAll { $0 == service }
         }
         settings[AIKeys.services] = list.map { $0.rawValue }
-        // Выключили сервис по умолчанию — берём первый включённый.
         let currentDefault = AIService(rawValue: settings[AIKeys.defaultService])
         if currentDefault == nil || !list.contains(currentDefault!) {
             settings[AIKeys.defaultService] = list[0].rawValue
@@ -313,7 +292,6 @@ final class AIModel {
         ensureCurrentVisible()
     }
 
-    /// Сдвинуть включённый сервис вверх (-1) или вниз (+1).
     func move(_ service: AIService, by delta: Int) {
         guard let settings else { return }
         var list = enabledServices
@@ -331,14 +309,12 @@ final class AIModel {
         return target >= 0 && target < list.count
     }
 
-    /// Если текущий сервис скрыли в настройках — переключиться на доступный.
     func ensureCurrentVisible() {
         if !visibleServices.contains(current) { select(defaultVisibleService) }
     }
 
     // MARK: - Адреса
 
-    /// Строка похожа на адрес сайта (есть точка и нет пробелов) или имеет схему http(s).
     private func urlFromInput(_ input: String) -> URL? {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
@@ -365,7 +341,6 @@ final class AIModel {
         service == .browser ? browserHomeURL : service.url
     }
 
-    /// Enter в адресной строке: адрес или поиск.
     func submitAddress(_ input: String) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -373,16 +348,13 @@ final class AIModel {
         webView(for: .browser).load(URLRequest(url: url))
     }
 
-    /// Фокус адресной строки: держим шторку открытой, пока в ней печатают.
     func addressFocusChanged(_ focused: Bool) {
         addressEditing = focused
         if focused {
             setTyping(true)
         } else {
-            // Если фокус ушёл на саму страницу, hold остаётся за ней.
             if let view = views[.browser], let responder = view.window?.firstResponder as? NSView,
-               responder === view || responder.isDescendant(of: view) {
-                // оставляем как есть
+                responder === view || responder.isDescendant(of: view) {
             } else {
                 setTyping(false)
             }
@@ -392,7 +364,6 @@ final class AIModel {
 
     // MARK: - WebView
 
-    /// Создаётся лениво при первом показе сервиса и кэшируется.
     func webView(for service: AIService) -> FocusWebView {
         touch(service)
         if let existing = views[service] { return existing }
@@ -416,7 +387,6 @@ final class AIModel {
             guard let notch = self?.notch, notch.dropHover != hovering else { return }
             notch.dropHover = hovering
         }
-        // Адрес меняется и без загрузки страницы (SPA): следим за url.
         urlObservers[service] = view.observe(\.url, options: []) { [weak self, weak view] _, _ in
             Task { @MainActor in
                 guard let self, let view else { return }
@@ -436,7 +406,6 @@ final class AIModel {
         accessOrder.append(service)
     }
 
-    /// LRU: живых веб-вью не больше лимита из настроек.
     private func enforceLimit(keeping service: AIService) {
         let limit = settings?[AIKeys.keepAlive] ?? 2
         guard limit > 0 else { return }
@@ -446,7 +415,6 @@ final class AIModel {
         }
     }
 
-    /// Выгрузка: остановить загрузку, снять делегатов и наблюдателей, убрать из кэша. Данные входа остаются в общем хранилище.
     private func unload(_ service: AIService) {
         guard let view = views[service] else { return }
         if typing && typingService == service { setTyping(false) }
@@ -467,13 +435,11 @@ final class AIModel {
         }
     }
 
-    /// Вкладка показана (вью живёт на экране).
     func setViewShown(_ on: Bool) {
         viewShown = on
         updateIdleTimer()
     }
 
-    /// Таймер выгрузки идёт, пока шторка закрыта или вкладка ИИ не показана.
     func updateIdleTimer() {
         let active = viewShown && notch?.state.phase == .open
         if active {
@@ -492,7 +458,6 @@ final class AIModel {
         }
     }
 
-    /// Выгрузить всё, кроме страницы, где недавно (меньше 30 мин назад) печатали.
     private func unloadIdle() {
         var keep: AIService?
         if let service = typingService, let at = lastTypedAt, Date().timeIntervalSince(at) < 30 * 60 {
@@ -503,7 +468,6 @@ final class AIModel {
 
     func select(_ service: AIService) {
         guard service != current else { return }
-        // Уходим со старой страницы: фокус ввода сбрасываем, пока не кликнут в новую.
         setTyping(false)
         current = service
         let view = views[service]
@@ -527,7 +491,6 @@ final class AIModel {
         NSWorkspace.shared.open(views[current]?.url ?? homeURL(for: current))
     }
 
-    /// Фокус ввода в WebView: держим шторку открытой.
     func setTyping(_ on: Bool) {
         guard on != typing else { return }
         typing = on
@@ -536,7 +499,6 @@ final class AIModel {
         notch?.hold(Self.typingReason, on)
     }
 
-    /// Выйти из аккаунтов: очистить данные сайтов и перезагрузить страницы.
     func signOut() async {
         let store = WKWebsiteDataStore.default()
         await store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
@@ -562,12 +524,10 @@ final class AIModel {
     }
 }
 
-/// Делегат навигации и окон: у AI-сервисов внешние домены уходят в браузер, во вкладке «Браузер» всё открывается внутри.
 @MainActor
 final class AIWebDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
     weak var model: AIModel?
 
-    /// Окна входа, общие для всех AI-сервисов.
     private static let commonHosts = [
         "appleid.apple.com", "login.microsoftonline.com", "challenges.cloudflare.com",
         "accounts.google.com",
@@ -591,9 +551,10 @@ final class AIWebDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: WKUIDelegate
 
-    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
-                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        // target=_blank и window.open: в «Браузере» и для своих доменов грузим в текущем окне.
+    func webView(
+        _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
         if let url = navigationAction.request.url, isExternal(url, for: service(of: webView)) {
             NSWorkspace.shared.open(url)
         } else {
@@ -604,16 +565,16 @@ final class AIWebDelegate: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: WKNavigationDelegate
 
-    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
-                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        // Файл, брошенный на окно, не должен заменить переписку.
+    func webView(
+        _ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
         if let url = navigationAction.request.url, url.isFileURL {
             decisionHandler(.cancel)
             return
         }
-        // Ссылка на чужой сайт открывается в браузере (кроме вкладки «Браузер»).
         if navigationAction.navigationType == .linkActivated,
-           let url = navigationAction.request.url, isExternal(url, for: service(of: webView)) {
+            let url = navigationAction.request.url, isExternal(url, for: service(of: webView)) {
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
             return

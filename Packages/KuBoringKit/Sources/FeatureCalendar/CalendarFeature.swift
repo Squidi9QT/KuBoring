@@ -1,7 +1,6 @@
 import SwiftUI
 import KuBoringCore
 
-/// Вкладка «Календарь»: события на сегодня и завтра (EventKit).
 @MainActor
 public final class CalendarFeature: NotchFeature {
     public let id = "calendar"

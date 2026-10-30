@@ -1,10 +1,6 @@
 import Foundation
 
-/// Команды pmset, которым нужны права администратора: режим энергосбережения и «не спать с закрытой крышкой».
-/// Первый раз macOS спрашивает пароль и заодно ставит правило sudo, разрешающее без пароля ТОЛЬКО эти команды;
-/// дальше они выполняются через `sudo -n` без вопросов.
 enum PrivilegedPmset {
-    /// Одна разрешённая команда (аргументы pmset). Значения только 0/1 — других правило не пропустит.
     enum Command: Equatable {
         case lowPowerOnBattery(Bool)
         case lowPowerOnAdapter(Bool)
@@ -23,21 +19,17 @@ enum PrivilegedPmset {
 
     static let sudoersPath = "/private/etc/sudoers.d/kuboring-lowpower"
 
-    /// Правило уже стоит (возможно, старой версии — тогда при первой новой команде пароль спросят ещё раз).
     static var ruleInstalled: Bool { FileManager.default.fileExists(atPath: sudoersPath) }
 
-    /// Текст правила для пользователя (синтаксис проверен `visudo -cf`).
     static func ruleText(user: String) -> String {
         "\(user) ALL=(root) NOPASSWD: /usr/bin/pmset -b lowpowermode [01], /usr/bin/pmset -c lowpowermode [01], "
             + "/usr/bin/pmset -a disablesleep [01]\n"
     }
 
-    /// Выполнить команды: сначала без пароля; если правило не подходит — один запрос пароля.
     static func run(_ commands: [Command], prompt: String) async -> Outcome {
         if await runPasswordless(commands) { return .done }
         let result = await runWithAdmin(commands, prompt: prompt)
         if result.status == 0 { return .done }
-        // -128 — пользователь нажал «Отменить».
         return result.error.contains("-128") ? .cancelled : .failed
     }
 
@@ -54,8 +46,8 @@ enum PrivilegedPmset {
         let pmset = commands.map { "/usr/bin/pmset " + $0.arguments.joined(separator: " ") }.joined(separator: " && ")
         var shell = pmset
         if let rule = writeRuleFile() {
-            // Правило проверяем visudo и ставим root:wheel 0440; если что-то не так — команду всё равно выполняем.
-            shell = "(/usr/sbin/visudo -cf \(rule) && /usr/bin/install -m 0440 -o root -g wheel \(rule) \(sudoersPath)); "
+            shell =
+                "(/usr/sbin/visudo -cf \(rule) && /usr/bin/install -m 0440 -o root -g wheel \(rule) \(sudoersPath)); "
                 + "/bin/rm -f \(rule); " + pmset
         }
         let safePrompt = prompt.replacingOccurrences(of: "\"", with: "'")
@@ -64,14 +56,15 @@ enum PrivilegedPmset {
         return (r.status, r.error)
     }
 
-    /// Файл правила во временной папке; nil — имя пользователя необычное, правило не ставим.
     private static func writeRuleFile() -> String? {
         let user = NSUserName()
         guard !user.isEmpty, user.allSatisfy(\.isASCII),
-              user.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." }) else { return nil }
+            user.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." })
+        else { return nil }
         let path = (NSTemporaryDirectory() as NSString).appendingPathComponent("kuboring-lowpower-\(UUID().uuidString)")
         guard !path.contains(" "), !path.contains("\""), !path.contains("'"),
-              (try? ruleText(user: user).write(toFile: path, atomically: true, encoding: .utf8)) != nil else { return nil }
+            (try? ruleText(user: user).write(toFile: path, atomically: true, encoding: .utf8)) != nil
+        else { return nil }
         return path
     }
 
@@ -92,7 +85,6 @@ enum PrivilegedPmset {
         }.value
     }
 
-    /// Сон запрещён системно (`pmset -g`: SleepDisabled 1).
     static func sleepDisabled() async -> Bool {
         let out = await exec("/usr/bin/pmset", ["-g"]).output
         return parseSleepDisabled(out)

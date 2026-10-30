@@ -24,7 +24,6 @@ public final class ShelfFeature: NotchFeature, NotchDropHandler {
         model.load()
         context.notch.dropHandler = self
         context.notch.dropTabID = "shelf"
-        // Системное уведомление AppKit: чистим полку при выходе, если включено.
         quitObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in

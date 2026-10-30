@@ -1,7 +1,6 @@
 import SwiftUI
 import Observation
 
-/// Ключ настройки с типом и значением по умолчанию. Хранится в UserDefaults (JSON).
 public struct SettingKey<Value: Codable & Sendable>: Sendable {
     public let name: String
     public let defaultValue: Value
@@ -12,7 +11,6 @@ public struct SettingKey<Value: Codable & Sendable>: Sendable {
     }
 }
 
-/// Ключ включённости фичи: "feature.<id>.enabled"
 public func featureEnabledKey(_ id: String, default on: Bool = true) -> SettingKey<Bool> {
     SettingKey("feature.\(id).enabled", default: on)
 }
@@ -21,7 +19,6 @@ public func featureEnabledKey(_ id: String, default on: Bool = true) -> SettingK
 public final class SettingsStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var cache: [String: Any] = [:]
-    /// Счётчик версии: читается в get, увеличивается в set/reset — так Observation видит изменения.
     private var revision: Int = 0
 
     public init(defaults: UserDefaults = .standard) {
@@ -33,7 +30,8 @@ public final class SettingsStore {
             _ = revision
             if let cached = cache[key.name] as? V { return cached }
             guard let data = defaults.data(forKey: key.name),
-                  let value = try? JSONDecoder().decode(V.self, from: data) else {
+                let value = try? JSONDecoder().decode(V.self, from: data)
+            else {
                 return key.defaultValue
             }
             cache[key.name] = value
@@ -58,7 +56,6 @@ public final class SettingsStore {
         revision &+= 1
     }
 
-    /// Сброс раздела, например "feature.timer."
     public func reset(prefix: String) {
         for name in defaults.dictionaryRepresentation().keys where name.hasPrefix(prefix) {
             defaults.removeObject(forKey: name)

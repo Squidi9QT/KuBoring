@@ -23,25 +23,31 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             SettingsSection("Запуск", footer: launchError) {
-                SettingsToggle("Запускать при входе в систему",
-                               hint: "KuBoring будет открываться автоматически вместе с macOS.",
-                               isOn: launchBinding)
+                SettingsToggle(
+                    "Запускать при входе в систему",
+                    hint: "KuBoring будет открываться автоматически вместе с macOS.",
+                    isOn: launchBinding)
             }
             SettingsSection("Экраны") {
-                SettingsToggle("Показывать на всех экранах",
-                               hint: "Выключено: шторка только на главном экране (с меню-баром).",
-                               isOn: settings.binding(CoreKeys.showOnAllScreens))
-                SettingsToggle("Скрывать в полноэкранных приложениях",
-                               hint: "Шторка не будет мешать видео и играм на весь экран.",
-                               isOn: settings.binding(CoreKeys.hideInFullscreen))
+                SettingsToggle(
+                    "Показывать на всех экранах",
+                    hint: "Выключено: шторка только на главном экране (с меню-баром).",
+                    isOn: settings.binding(CoreKeys.showOnAllScreens))
+                SettingsToggle(
+                    "Скрывать в полноэкранных приложениях",
+                    hint: "Шторка не будет мешать видео и играм на весь экран.",
+                    isOn: settings.binding(CoreKeys.hideInFullscreen))
             }
             SettingsSection("Вкладки") {
-                SettingsToggle("Помнить последнюю вкладку",
-                               hint: "При открытии шторки показывается вкладка, на которой вы закончили.",
-                               isOn: settings.binding(CoreKeys.rememberLastTab))
-                SettingsToggle("Показывать заряд аккумулятора",
-                               hint: "Процент и значок батареи рядом с кнопкой настроек; по клику — панель с состоянием зарядки и режимом энергосбережения.",
-                               isOn: settings.binding(CoreKeys.showBattery))
+                SettingsToggle(
+                    "Помнить последнюю вкладку",
+                    hint: "При открытии шторки показывается вкладка, на которой вы закончили.",
+                    isOn: settings.binding(CoreKeys.rememberLastTab))
+                SettingsToggle(
+                    "Показывать заряд аккумулятора",
+                    hint:
+                        "Процент и значок батареи рядом с кнопкой настроек; по клику — панель с состоянием зарядки и режимом энергосбережения.",
+                    isOn: settings.binding(CoreKeys.showBattery))
             }
             SettingsSection("Сброс") {
                 SettingsResetButton {
@@ -58,7 +64,6 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Общие")
         .onAppear {
-            // Синхронизируем с реальным состоянием системы (пользователь мог изменить в Параметрах).
             let actual = LaunchAtLogin.isEnabled
             if settings[CoreKeys.launchAtLogin] != actual { settings[CoreKeys.launchAtLogin] = actual }
         }

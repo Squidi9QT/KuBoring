@@ -1,11 +1,9 @@
 import SwiftUI
 import KuBoringCore
 
-/// Состояние текущих загрузок браузеров.
 struct DownloadsProgress: Equatable {
     var count: Int
     var bytes: Int64
-    /// Известен общий размер хотя бы части загрузок (Safari) — тогда есть процент.
     var total: Int64?
 
     var fraction: Double? {
@@ -14,8 +12,6 @@ struct DownloadsProgress: Equatable {
     }
 }
 
-/// Следит за папкой «Загрузки»: недокачанные файлы браузеров (.download, .crdownload, .part, .opdownload).
-/// Событие папки будит проверку; опрос раз в секунду — только пока что-то качается.
 @MainActor
 final class DownloadsWatcher {
     private let activities: ActivityCenter
@@ -38,8 +34,9 @@ final class DownloadsWatcher {
         guard source == nil, let folder else { return }
         let fd = open(folder.path, O_EVTONLY)
         guard fd >= 0 else { return }
-        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete],
-                                                            queue: .main)
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .rename, .delete],
+            queue: .main)
         src.setEventHandler { [weak self] in
             MainActor.assumeIsolated { self?.check() }
         }
@@ -58,7 +55,6 @@ final class DownloadsWatcher {
         activities.remove(id: Self.activityID)
     }
 
-    /// Есть недокачанные — запускаем опрос (если ещё не идёт).
     private func check() {
         guard source != nil, pollTask == nil else { return }
         guard let progress = scan(), progress.count > 0 else { return }
@@ -81,48 +77,49 @@ final class DownloadsWatcher {
         pollTask = nil
         let name = lastNames.count == 1 ? lastNames[0] : nil
         lastNames = []
-        activities.post(LiveActivity(
-            id: Self.activityID,
-            priority: 65,
-            expiresAt: Date().addingTimeInterval(2.5),
-            extraWidth: 40,
-            leading: AnyView(
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white)
-            ),
-            trailing: AnyView(
-                Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .help(name ?? "Загрузки завершены")
-            )
-        ))
+        activities.post(
+            LiveActivity(
+                id: Self.activityID,
+                priority: 65,
+                expiresAt: Date().addingTimeInterval(2.5),
+                extraWidth: 40,
+                leading: AnyView(
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                ),
+                trailing: AnyView(
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .help(name ?? "Загрузки завершены")
+                )
+            ))
     }
 
     private func post(_ progress: DownloadsProgress) {
-        activities.post(LiveActivity(
-            id: Self.activityID,
-            priority: 65,
-            extraWidth: 52,
-            leading: AnyView(DownloadRing(fraction: progress.fraction)),
-            trailing: AnyView(DownloadLabel(progress: progress))
-        ))
+        activities.post(
+            LiveActivity(
+                id: Self.activityID,
+                priority: 65,
+                extraWidth: 52,
+                leading: AnyView(DownloadRing(fraction: progress.fraction)),
+                trailing: AnyView(DownloadLabel(progress: progress))
+            ))
     }
 
-    /// Недокачанные файлы и их прогресс.
     private func scan() -> DownloadsProgress? {
         guard let folder,
-              let items = try? FileManager.default.contentsOfDirectory(
-                  at: folder, includingPropertiesForKeys: [.fileSizeKey, .totalFileAllocatedSizeKey],
-                  options: [.skipsHiddenFiles]) else { return nil }
+            let items = try? FileManager.default.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.fileSizeKey, .totalFileAllocatedSizeKey],
+                options: [.skipsHiddenFiles])
+        else { return nil }
         var progress = DownloadsProgress(count: 0, bytes: 0, total: nil)
         var names: [String] = []
         for url in items where Self.partialExtensions.contains(url.pathExtension.lowercased()) {
             progress.count += 1
             names.append(url.deletingPathExtension().lastPathComponent)
             if url.pathExtension.lowercased() == "download" {
-                // Safari: пакет .download с Info.plist внутри.
                 let plist = url.appendingPathComponent("Info.plist")
                 if let dict = NSDictionary(contentsOf: plist) as? [String: Any] {
                     let done = (dict["DownloadEntryProgressBytesSoFar"] as? NSNumber)?.int64Value ?? 0
@@ -140,7 +137,6 @@ final class DownloadsWatcher {
     }
 }
 
-/// Кольцо прогресса (или вращающееся, если общий размер неизвестен).
 struct DownloadRing: View {
     let fraction: Double?
     @State private var spin = false

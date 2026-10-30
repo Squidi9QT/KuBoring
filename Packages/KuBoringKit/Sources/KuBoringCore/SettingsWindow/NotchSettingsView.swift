@@ -10,7 +10,6 @@ struct NotchSettingsView: View {
         return CGSize(width: 185, height: 32)
     }
 
-    /// Привязка к одному полю геометрии.
     private func field<T>(_ keyPath: WritableKeyPath<NotchGeometry, T>) -> Binding<T> {
         Binding(
             get: { settings[CoreKeys.geometry][keyPath: keyPath] },
@@ -43,44 +42,53 @@ struct NotchSettingsView: View {
             SettingsSection("Открытая шторка") {
                 SettingsSlider("Ширина", value: field(\.openWidth), in: 400...900, step: 10, unit: "pt")
                 SettingsSlider("Высота", value: field(\.openHeight), in: 120...600, step: 10, unit: "pt")
-                SettingsSlider("Радиус углов", hint: "Скругление нижних углов открытой шторки.",
-                               value: field(\.cornerRadius), in: 8...40, step: 1, unit: "pt")
+                SettingsSlider(
+                    "Радиус углов", hint: "Скругление нижних углов открытой шторки.",
+                    value: field(\.cornerRadius), in: 8...40, step: 1, unit: "pt")
             }
 
             SettingsSection("Закрытая шторка") {
-                SettingsToggle("Ширина по вырезу",
-                               hint: "Реальный вырез на этом экране: \(Int(physical.width)) pt.",
-                               isOn: field(\.closedWidthAuto))
+                SettingsToggle(
+                    "Ширина по вырезу",
+                    hint: "Реальный вырез на этом экране: \(Int(physical.width)) pt.",
+                    isOn: field(\.closedWidthAuto))
                 if !g.closedWidthAuto {
                     SettingsSlider("Ширина", value: field(\.closedWidth), in: 100...400, step: 5, unit: "pt")
                 }
-                SettingsToggle("Высота по вырезу или меню-бару",
-                               hint: "Сейчас: \(Int(physical.height)) pt.",
-                               isOn: field(\.closedHeightAuto))
+                SettingsToggle(
+                    "Высота по вырезу или меню-бару",
+                    hint: "Сейчас: \(Int(physical.height)) pt.",
+                    isOn: field(\.closedHeightAuto))
                 if !g.closedHeightAuto {
                     SettingsSlider("Высота", value: field(\.closedHeight), in: 20...60, step: 1, unit: "pt")
                 }
             }
 
             SettingsSection("Наведение") {
-                SettingsToggle("Открывать при наведении",
-                               hint: "Выключено: шторка открывается только по клику.",
-                               isOn: field(\.openOnHover))
-                SettingsSlider("Зона по горизонтали",
-                               hint: "На сколько зона наведения шире выреза с каждой стороны.",
-                               value: field(\.hoverPaddingX), in: 0...80, step: 1, unit: "pt")
-                SettingsSlider("Зона по вертикали",
-                               hint: "На сколько зона наведения ниже выреза.",
-                               value: field(\.hoverPaddingY), in: 0...40, step: 1, unit: "pt")
+                SettingsToggle(
+                    "Открывать при наведении",
+                    hint: "Выключено: шторка открывается только по клику.",
+                    isOn: field(\.openOnHover))
+                SettingsSlider(
+                    "Зона по горизонтали",
+                    hint: "На сколько зона наведения шире выреза с каждой стороны.",
+                    value: field(\.hoverPaddingX), in: 0...80, step: 1, unit: "pt")
+                SettingsSlider(
+                    "Зона по вертикали",
+                    hint: "На сколько зона наведения ниже выреза.",
+                    value: field(\.hoverPaddingY), in: 0...40, step: 1, unit: "pt")
             }
 
             SettingsSection("Время и анимация") {
-                SettingsSlider("Задержка открытия", hint: "Сколько курсор должен постоять в зоне.",
-                               value: field(\.openDelay), in: 0...1, step: 0.05, unit: "с")
-                SettingsSlider("Задержка закрытия", hint: "Сколько ждать после ухода курсора.",
-                               value: field(\.closeDelay), in: 0...2, step: 0.05, unit: "с")
-                SettingsSlider("Скорость анимации", hint: "Больше — быстрее.",
-                               value: field(\.animationSpeed), in: 0.5...2.0, step: 0.1, unit: "×")
+                SettingsSlider(
+                    "Задержка открытия", hint: "Сколько курсор должен постоять в зоне.",
+                    value: field(\.openDelay), in: 0...1, step: 0.05, unit: "с")
+                SettingsSlider(
+                    "Задержка закрытия", hint: "Сколько ждать после ухода курсора.",
+                    value: field(\.closeDelay), in: 0...2, step: 0.05, unit: "с")
+                SettingsSlider(
+                    "Скорость анимации", hint: "Больше — быстрее.",
+                    value: field(\.animationSpeed), in: 0.5...2.0, step: 0.1, unit: "×")
             }
 
             SettingsSection("Сброс") {
@@ -94,7 +102,6 @@ struct NotchSettingsView: View {
     }
 }
 
-/// Живое превью формы шторки.
 struct NotchPreview: View {
     let geometry: NotchGeometry
     let physical: CGSize
@@ -115,7 +122,6 @@ struct NotchPreview: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gray.opacity(0.18))
 
-                // Условная строка меню
                 VStack(spacing: 0) {
                     Rectangle().fill(Color.gray.opacity(0.18)).frame(height: 4)
                     Spacer()
@@ -123,10 +129,13 @@ struct NotchPreview: View {
 
                 if !open {
                     Rectangle()
-                        .strokeBorder(Color.accentColor.opacity(0.8),
-                                      style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                        .frame(width: (closed.width + 2 * g.hoverPaddingX) * scale,
-                               height: (closed.height + g.hoverPaddingY) * scale)
+                        .strokeBorder(
+                            Color.accentColor.opacity(0.8),
+                            style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                        )
+                        .frame(
+                            width: (closed.width + 2 * g.hoverPaddingX) * scale,
+                            height: (closed.height + g.hoverPaddingY) * scale)
                 }
 
                 NotchShape(topRadius: ear * scale, bottomRadius: bottom * scale)
