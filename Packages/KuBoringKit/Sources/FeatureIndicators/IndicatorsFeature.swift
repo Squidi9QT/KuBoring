@@ -57,34 +57,23 @@ struct IndicatorsSettingsView: View {
     let settings: SettingsStore
     let onChange: () -> Void
 
-    private func flag(_ key: SettingKey<Bool>) -> Binding<Bool> {
-        Binding(
-            get: { settings[key] },
-            set: {
-                settings[key] = $0; onChange()
-            })
-    }
-
     var body: some View {
         Group {
             SettingsSection("Загрузки", footer: "При включении macOS один раз спросит доступ к папке «Загрузки».") {
                 SettingsToggle(
                     "Прогресс загрузок",
                     hint: "Safari, Chrome, Firefox и другие браузеры: процент или размер скачанного в закрытой шторке.",
-                    isOn: flag(IndicatorsKeys.downloads))
+                    isOn: settings.binding(IndicatorsKeys.downloads))
             }
             SettingsSection("Зарядка") {
                 SettingsToggle(
                     "Анимация подключения зарядки",
                     hint: "Короткая анимация молнии у выреза, когда подключаешь зарядку.",
-                    isOn: flag(IndicatorsKeys.charging))
+                    isOn: settings.binding(IndicatorsKeys.charging))
             }
-            SettingsSection("Сброс") {
-                SettingsResetButton {
-                    settings.reset(prefix: "feature.indicators.")
-                    onChange()
-                }
-            }
+        }
+        .onChange(of: [settings[IndicatorsKeys.downloads], settings[IndicatorsKeys.charging]]) { _, _ in
+            onChange()
         }
     }
 }

@@ -5,13 +5,12 @@ struct SystemSettingsView: View {
     let model: SystemModel
 
     private func flag(_ key: SettingKey<Bool>) -> Binding<Bool> {
-        Binding(
-            get: { model.settings[key] },
-            set: { newValue in
-                model.settings[key] = newValue
-                model.settingsChanged()
-            }
-        )
+        model.settings.binding(key)
+    }
+
+    private var allFlags: [Bool] {
+        [SystemKeys.hudVolume, SystemKeys.hudBrightness, SystemKeys.battery,
+         SystemKeys.batteryLow, SystemKeys.keepAwake, SystemKeys.keepAwakeBadge].map { model.settings[$0] }
     }
 
     var body: some View {
@@ -66,5 +65,6 @@ struct SystemSettingsView: View {
                 .disabled(!model.settings[SystemKeys.keepAwake])
             }
         }
+        .onChange(of: allFlags) { _, _ in model.settingsChanged() }
     }
 }
